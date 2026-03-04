@@ -1,0 +1,141 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "OKX DEX SDK",
+  "projectDescription": "TypeScript SDK for multi-chain DEX aggregation and token swaps across EVM, Solana, Sui, TON, and TRON networks",
+  "theme": "aspen",
+  "primaryColor": "#000000",
+  "lightColor": "#3B82F6",
+  "darkColor": "#60A5FA",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core-concepts/client-initialization",
+              "core-concepts/authentication",
+              "core-concepts/supported-chains",
+              "core-concepts/error-handling"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/evm-swaps",
+              "guides/solana-swaps",
+              "guides/sui-swaps",
+              "guides/ton-swaps",
+              "guides/tron-swaps",
+              "guides/cross-chain-bridging",
+              "guides/token-approvals",
+              "guides/gas-estimation",
+              "guides/transaction-broadcasting",
+              "guides/order-tracking"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "advanced/transaction-simulation",
+              "advanced/mev-protection",
+              "advanced/custom-routes",
+              "advanced/slippage-protection"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Client",
+            "pages": [
+              "api-reference/client/okxdexclient"
+            ]
+          },
+          {
+            "group": "DEX API",
+            "pages": [
+              "api-reference/dex/get-quote",
+              "api-reference/dex/get-swap-data",
+              "api-reference/dex/execute-swap",
+              "api-reference/dex/execute-approval",
+              "api-reference/dex/get-tokens",
+              "api-reference/dex/get-liquidity",
+              "api-reference/dex/get-chain-data",
+              "api-reference/dex/get-gas-limit",
+              "api-reference/dex/get-gas-price",
+              "api-reference/dex/broadcast-transaction",
+              "api-reference/dex/simulate-transaction",
+              "api-reference/dex/get-transaction-orders"
+            ]
+          },
+          {
+            "group": "Bridge API",
+            "pages": [
+              "api-reference/bridge/get-cross-chain-quote",
+              "api-reference/bridge/build-cross-chain-swap",
+              "api-reference/bridge/get-supported-tokens",
+              "api-reference/bridge/get-supported-bridges",
+              "api-reference/bridge/get-bridge-token-pairs"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api-reference/types/config-types",
+              "api-reference/types/swap-types",
+              "api-reference/types/quote-types",
+              "api-reference/types/transaction-types"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-chain token swaps across 6+ blockchain networks (EVM, Solana, Sui, TON, TRON)",
+    "Real-time price quotes and DEX liquidity aggregation",
+    "Cross-chain bridging and token transfers",
+    "Automated ERC-20 token approval handling",
+    "Transaction broadcasting with MEV protection",
+    "Gas estimation and transaction simulation",
+    "Real-time order tracking and status monitoring",
+    "Full TypeScript support with comprehensive type definitions",
+    "Built-in retry logic and error handling"
+  ],
+  "publicApiSurface": [
+    "OKXDexClient",
+    "DexAPI.getQuote",
+    "DexAPI.getSwapData",
+    "DexAPI.executeSwap",
+    "DexAPI.executeApproval",
+    "DexAPI.getTokens",
+    "DexAPI.getLiquidity",
+    "DexAPI.getChainData",
+    "DexAPI.getGasLimit",
+    "DexAPI.getGasPrice",
+    "DexAPI.broadcastTransaction",
+    "DexAPI.simulateTransaction",
+    "DexAPI.getTransactionOrders",
+    "DexAPI.getSolanaSwapInstruction",
+    "DexAPI.executeSolanaSwapInstructions",
+    "BridgeAPI.getCrossChainQuote",
+    "BridgeAPI.buildCrossChainSwap",
+    "BridgeAPI.getSupportedTokens",
+    "BridgeAPI.getSupportedBridges",
+    "BridgeAPI.getBridgeTokenPairs",
+    "createEVMWallet",
+    "createWallet"
+  ]
+}
