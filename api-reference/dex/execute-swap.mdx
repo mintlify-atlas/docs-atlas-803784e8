@@ -1,0 +1,216 @@
+---
+title: "Execute Swap"
+description: "Execute a token swap transaction"
+---
+
+## Method
+
+```typescript
+async executeSwap(params: SwapParams): Promise<SwapResult>
+```
+
+Executes a complete token swap by fetching swap data, signing the transaction, and broadcasting it to the blockchain. This is a high-level method that handles the entire swap process.
+
+## Parameters
+
+<ParamField path="params" type="SwapParams" required>
+  Swap request parameters (same as getSwapData)
+
+  <Expandable title="properties">
+    <ParamField path="chainIndex" type="string">
+      Chain identifier (e.g., "1" for Ethereum, "501" for Solana)
+    </ParamField>
+
+    <ParamField path="fromTokenAddress" type="string" required>
+      Contract address of the token to swap from
+    </ParamField>
+
+    <ParamField path="toTokenAddress" type="string" required>
+      Contract address of the token to swap to
+    </ParamField>
+
+    <ParamField path="amount" type="string" required>
+      Amount to swap (in token's smallest unit)
+    </ParamField>
+
+    <ParamField path="slippagePercent" type="string">
+      Maximum acceptable slippage (0-1). Required if autoSlippage is false.
+    </ParamField>
+
+    <ParamField path="autoSlippage" type="boolean">
+      Enable automatic slippage calculation
+    </ParamField>
+
+    <ParamField path="maxAutoSlippagePercent" type="string">
+      Maximum slippage when autoSlippage is enabled
+    </ParamField>
+
+    <ParamField path="userWalletAddress" type="string">
+      User's wallet address
+    </ParamField>
+
+    <ParamField path="swapReceiverAddress" type="string">
+      Address to receive swapped tokens
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Whether the swap was successful
+</ResponseField>
+
+<ResponseField name="transactionId" type="string">
+  Transaction hash/signature
+</ResponseField>
+
+<ResponseField name="explorerUrl" type="string">
+  Block explorer URL for the transaction
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Swap execution details
+
+  <Expandable title="properties">
+    <ResponseField name="fromToken" type="object">
+      Source token details
+      <Expandable title="properties">
+        <ResponseField name="symbol" type="string">
+          Token symbol
+        </ResponseField>
+        <ResponseField name="amount" type="string">
+          Amount swapped
+        </ResponseField>
+        <ResponseField name="decimal" type="string">
+          Token decimals
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="toToken" type="object">
+      Destination token details (same structure as fromToken)
+    </ResponseField>
+
+    <ResponseField name="priceImpact" type="string">
+      Price impact percentage
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Configuration Requirements
+
+### EVM Chains
+
+Requires EVM wallet configuration:
+
+```typescript
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  evm: {
+    wallet: evmWallet // EVMWallet instance
+  }
+});
+```
+
+### Solana
+
+Requires Solana wallet configuration:
+
+```typescript
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  solana: {
+    wallet: solanaWallet, // Wallet instance
+    computeUnits: 300000
+  }
+});
+```
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+import { EVMWallet } from '@okxweb3/okx-api/evm';
+
+const evmWallet = new EVMWallet('your-private-key');
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  evm: { wallet: evmWallet }
+});
+
+try {
+  const result = await client.dex.executeSwap({
+    chainIndex: '1',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    amount: '1000000000000000000', // 1 ETH
+    slippagePercent: '0.005',
+    userWalletAddress: evmWallet.getAddress()
+  });
+
+  console.log('Swap successful!');
+  console.log('Transaction:', result.transactionId);
+  console.log('Explorer:', result.explorerUrl);
+  console.log('Details:', result.details);
+} catch (error) {
+  console.error('Swap failed:', error.message);
+}
+```
+
+## Response Example
+
+```json
+{
+  "success": true,
+  "transactionId": "0x1234567890abcdef...",
+  "explorerUrl": "https://web3.okx.com/explorer/ethereum/tx/0x1234567890abcdef...",
+  "details": {
+    "fromToken": {
+      "symbol": "ETH",
+      "amount": "1000000000000000000",
+      "decimal": "18"
+    },
+    "toToken": {
+      "symbol": "USDC",
+      "amount": "2487500000",
+      "decimal": "6"
+    },
+    "priceImpact": "0.15"
+  }
+}
+```
+
+## Workflow
+
+1. Calls `getSwapData()` to fetch transaction data
+2. Retrieves network configuration for the chain
+3. Creates appropriate executor (EVM, Solana, or Sui) using `SwapExecutorFactory`
+4. Executor signs and broadcasts the transaction
+5. Returns swap result with transaction details
+
+## Error Handling
+
+```typescript
+try {
+  const result = await client.dex.executeSwap(params);
+} catch (error) {
+  if (error.message.includes('slippage')) {
+    // Handle slippage validation error
+  } else if (error.message.includes('wallet')) {
+    // Handle wallet configuration error
+  } else {
+    // Handle other errors
+  }
+}
+```

@@ -1,0 +1,218 @@
+---
+title: "Introduction"
+description: "A comprehensive TypeScript SDK for trading across multiple blockchain networks with OKX DEX"
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="OKX DEX SDK Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="OKX DEX SDK Hero Dark"
+/>
+
+## What is OKX DEX SDK?
+
+OKX DEX SDK is a powerful TypeScript library that enables developers to build sophisticated decentralized exchange applications across **6+ blockchain networks**. Execute token swaps, access real-time quotes, and leverage OKX's advanced trading infrastructure with just a few lines of code.
+
+The SDK abstracts away the complexity of interacting with multiple blockchain protocols, providing a unified interface for:
+- **EVM-compatible chains** (Ethereum, Base, Polygon, Arbitrum, Optimism, and 20+ more)
+- **Solana** - High-performance blockchain
+- **Sui** - Move-based smart contract platform
+- **TON** - Telegram Open Network
+- **TRON** - High-throughput blockchain
+
+## Quick Links
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Get started by installing the SDK via npm, yarn, or pnpm
+  </Card>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Execute your first token swap in under 5 minutes
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/client/okxdexclient"
+  >
+    Explore the complete API documentation
+  </Card>
+  <Card
+    title="GitHub Repository"
+    icon="github"
+    href="https://github.com/okx/okx-dex-sdk"
+  >
+    View the source code and contribute
+  </Card>
+</CardGroup>
+
+## Why OKX DEX SDK?
+
+### Multi-Chain Aggregation
+
+Stop writing separate integrations for each blockchain. The SDK provides a **single, consistent API** that works across all supported networks. Switch from Ethereum to Solana by changing just one parameter.
+
+### Enterprise-Grade Infrastructure
+
+Benefit from OKX's proven trading infrastructure:
+- **MEV Protection** - Safeguard against front-running and sandwich attacks
+- **Smart Order Routing** - Automatically find the best prices across DEXs
+- **Real-time Liquidity** - Access deep liquidity pools across protocols
+- **Transaction Broadcasting** - Direct submission through OKX infrastructure for faster execution
+
+### Developer Experience First
+
+<AccordionGroup>
+  <Accordion icon="shield-check" title="Full TypeScript Support">
+    Complete type safety with IntelliSense support. Catch errors at compile time, not runtime.
+  </Accordion>
+  
+  <Accordion icon="arrows-rotate" title="Built-in Retry Logic">
+    Automatic retries with exponential backoff for network failures and rate limits.
+  </Accordion>
+  
+  <Accordion icon="triangle-exclamation" title="Comprehensive Error Handling">
+    Detailed error messages with actionable insights. Know exactly what went wrong and how to fix it.
+  </Accordion>
+  
+  <Accordion icon="book" title="Extensive Examples">
+    Ready-to-use code samples for every chain and use case. Copy, paste, and customize.
+  </Accordion>
+</AccordionGroup>
+
+## Core Features
+
+<CardGroup cols={3}>
+  <Card title="Token Swaps" icon="right-left">
+    Execute swaps across 25+ blockchains with automatic routing and slippage protection
+  </Card>
+  
+  <Card title="Real-time Quotes" icon="chart-line">
+    Get accurate pricing, route information, and price impact calculations
+  </Card>
+  
+  <Card title="Token Approvals" icon="circle-check">
+    Automated ERC-20 approval handling with proper allowance management
+  </Card>
+  
+  <Card title="Gas Estimation" icon="gauge-high">
+    Accurate gas limit calculation using onchain data
+  </Card>
+  
+  <Card title="Transaction Simulation" icon="flask">
+    Pre-execution validation and risk assessment before submitting transactions
+  </Card>
+  
+  <Card title="Order Tracking" icon="magnifying-glass">
+    Real-time transaction status monitoring and history
+  </Card>
+</CardGroup>
+
+## Solving DEX Aggregation Complexity
+
+### The Problem
+
+Building multi-chain DEX applications is challenging:
+- Each blockchain has different APIs, wallet formats, and transaction structures
+- Finding the best swap routes requires querying multiple DEX protocols
+- Managing slippage, gas fees, and MEV protection adds complexity
+- Handling errors and edge cases across chains is time-consuming
+
+### The Solution
+
+OKX DEX SDK solves these challenges by:
+
+<Steps>
+  <Step title="Unified Interface">
+    One API for all chains. Same methods, same parameters, consistent behavior.
+  </Step>
+  
+  <Step title="Smart Routing">
+    Automatically finds the best prices by checking multiple DEXs and liquidity sources.
+  </Step>
+  
+  <Step title="Built-in Protection">
+    Slippage protection, MEV mitigation, and transaction simulation built into the SDK.
+  </Step>
+  
+  <Step title="Production Ready">
+    Battle-tested infrastructure handling millions in daily volume.
+  </Step>
+</Steps>
+
+## Supported Networks
+
+The SDK supports **25+ blockchain networks** with full swap, quote, and approval functionality:
+
+### Major EVM Chains
+- **Ethereum** (Chain ID: 1)
+- **Base** (Chain ID: 8453)
+- **Polygon** (Chain ID: 137)
+- **Avalanche** (Chain ID: 43114)
+- **BSC** (Chain ID: 56)
+- **Arbitrum** (Chain ID: 42161)
+- **Optimism** (Chain ID: 10)
+
+### Layer 2 & Scaling Solutions
+- **Polygon zkEVM** (1101)
+- **zkSync Era** (324)
+- **Linea** (59144)
+- **Scroll** (534352)
+- **Mantle** (5000)
+- **Blast** (81457)
+- **Sonic** (146)
+
+### Other EVM Networks
+- Fantom, Gnosis, X Layer, Manta Pacific, Metis, Cronos, and more
+
+### Non-EVM Chains
+- **Solana** (501)
+- **Sui** (784)
+- **TON** (607)
+- **TRON** (195)
+
+<Note>
+All EVM chains support the full feature set: swaps, quotes, approvals, broadcasting, and order tracking.
+</Note>
+
+## What You Can Build
+
+<CardGroup cols={2}>
+  <Card title="DEX Aggregators" icon="layer-group">
+    Build your own DEX aggregator UI that finds the best prices across protocols
+  </Card>
+  
+  <Card title="Trading Bots" icon="robot">
+    Automate trading strategies with programmatic access to DEX liquidity
+  </Card>
+  
+  <Card title="Portfolio Managers" icon="briefcase">
+    Create multi-chain portfolio management tools with automated rebalancing
+  </Card>
+  
+  <Card title="Payment Solutions" icon="credit-card">
+    Build payment systems that accept any token and auto-convert to preferred assets
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<Card
+  title="Ready to start building?"
+  icon="rocket"
+  href="/installation"
+>
+  Install the SDK and execute your first swap in minutes
+</Card>

@@ -1,0 +1,270 @@
+---
+title: "Get Gas Limit"
+description: "Estimate gas limit for a transaction"
+---
+
+## Method
+
+```typescript
+async getGasLimit(params: GasLimitParams): Promise<APIResponse<GasLimitData>>
+```
+
+Estimates the gas limit required for a transaction. This helps determine the maximum amount of gas that should be allocated to ensure transaction success.
+
+## Parameters
+
+<ParamField path="params" type="GasLimitParams" required>
+  Gas limit estimation parameters
+
+  <Expandable title="properties">
+    <ParamField path="chainIndex" type="string" required>
+      Chain identifier (e.g., "1" for Ethereum)
+    </ParamField>
+
+    <ParamField path="fromAddress" type="string" required>
+      Sender wallet address
+    </ParamField>
+
+    <ParamField path="toAddress" type="string" required>
+      Recipient or contract address
+    </ParamField>
+
+    <ParamField path="txAmount" type="string">
+      Transaction amount in wei (for value transfers)
+    </ParamField>
+
+    <ParamField path="extJson" type="object">
+      Extended data for contract calls
+      <Expandable title="properties">
+        <ParamField path="inputData" type="string">
+          Encoded contract call data (hex string)
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="GasLimitData[]">
+  Array containing gas limit data
+
+  <Expandable title="GasLimitData properties">
+    <ResponseField name="gasLimit" type="string">
+      Estimated gas limit for the transaction
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+### Simple Transfer
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+const gasLimit = await client.dex.getGasLimit({
+  chainIndex: '1',
+  fromAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  toAddress: '0xRecipientAddress',
+  txAmount: '1000000000000000000' // 1 ETH
+});
+
+console.log('Gas limit:', gasLimit.data[0].gasLimit);
+```
+
+### Contract Call (Swap)
+
+```typescript
+// First, get swap data
+const swapData = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+});
+
+const tx = swapData.data[0].tx;
+
+// Estimate gas limit for the swap
+const gasLimit = await client.dex.getGasLimit({
+  chainIndex: '1',
+  fromAddress: tx.from,
+  toAddress: tx.to,
+  txAmount: tx.value,
+  extJson: {
+    inputData: tx.data
+  }
+});
+
+console.log('Estimated gas for swap:', gasLimit.data[0].gasLimit);
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "gasLimit": "200000"
+  }]
+}
+```
+
+## Use Cases
+
+### Pre-flight Transaction Check
+
+```typescript
+async function estimateTransactionCost(
+  fromAddress: string,
+  toAddress: string,
+  data: string,
+  value: string,
+  chainIndex: string
+) {
+  // Get gas limit
+  const gasLimitResult = await client.dex.getGasLimit({
+    chainIndex,
+    fromAddress,
+    toAddress,
+    txAmount: value,
+    extJson: { inputData: data }
+  });
+
+  // Get gas price
+  const gasPriceResult = await client.dex.getGasPrice(chainIndex);
+
+  const gasLimit = BigInt(gasLimitResult.data[0].gasLimit);
+  const gasPrice = BigInt(gasPriceResult.data[0].normal);
+  const totalCost = gasLimit * gasPrice;
+
+  return {
+    gasLimit: gasLimitResult.data[0].gasLimit,
+    gasPrice: gasPriceResult.data[0].normal,
+    estimatedCost: totalCost.toString()
+  };
+}
+```
+
+### Safety Buffer
+
+```typescript
+const gasLimitResult = await client.dex.getGasLimit(params);
+const estimatedGas = BigInt(gasLimitResult.data[0].gasLimit);
+
+// Add 20% buffer for safety
+const gasLimitWithBuffer = (estimatedGas * 120n) / 100n;
+
+console.log('Estimated gas:', estimatedGas.toString());
+console.log('Gas with buffer:', gasLimitWithBuffer.toString());
+```
+
+### Compare with Actual Gas Used
+
+```typescript
+// Before transaction
+const estimate = await client.dex.getGasLimit(params);
+console.log('Estimated:', estimate.data[0].gasLimit);
+
+// After transaction
+const receipt = await web3.eth.getTransactionReceipt(txHash);
+console.log('Actual gas used:', receipt.gasUsed);
+
+const efficiency = (receipt.gasUsed / estimate.data[0].gasLimit) * 100;
+console.log('Efficiency:', efficiency.toFixed(2) + '%');
+```
+
+### Dynamic Gas Limit Selection
+
+```typescript
+async function getOptimalGasLimit(params: GasLimitParams) {
+  try {
+    const result = await client.dex.getGasLimit(params);
+    return result.data[0].gasLimit;
+  } catch (error) {
+    // Fallback to default if estimation fails
+    console.warn('Gas estimation failed, using default');
+    return '200000'; // Default gas limit
+  }
+}
+
+const swapData = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  gasLimit: await getOptimalGasLimit({
+    chainIndex: '1',
+    fromAddress: userAddress,
+    toAddress: dexContract,
+    extJson: { inputData: swapCallData }
+  })
+});
+```
+
+## Notes
+
+- Gas limit is returned as a string to handle large numbers
+- Always add a safety buffer (10-20%) when using the estimate
+- Estimates may be inaccurate for complex contract interactions
+- Gas limit estimation requires valid `fromAddress` and `toAddress`
+- For contract calls, include the `inputData` in `extJson`
+
+## Error Handling
+
+```typescript
+try {
+  const gasLimit = await client.dex.getGasLimit(params);
+  console.log('Gas limit:', gasLimit.data[0].gasLimit);
+} catch (error) {
+  if (error.message.includes('execution reverted')) {
+    console.error('Transaction would fail');
+  } else if (error.message.includes('insufficient funds')) {
+    console.error('Insufficient balance for gas');
+  } else {
+    console.error('Gas estimation failed:', error.message);
+  }
+}
+```
+
+## Integration with Swaps
+
+```typescript
+// Get swap data with custom gas limit
+const swapTx = await client.dex.getSwapData(swapParams);
+
+// Estimate gas for the swap
+const gasEstimate = await client.dex.getGasLimit({
+  chainIndex: swapParams.chainIndex!,
+  fromAddress: swapTx.data[0].tx.from,
+  toAddress: swapTx.data[0].tx.to,
+  txAmount: swapTx.data[0].tx.value,
+  extJson: { inputData: swapTx.data[0].tx.data }
+});
+
+// Use estimated gas in swap execution
+const result = await client.dex.executeSwap({
+  ...swapParams,
+  gasLimit: gasEstimate.data[0].gasLimit
+});
+```

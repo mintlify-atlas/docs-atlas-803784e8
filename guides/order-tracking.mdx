@@ -1,0 +1,531 @@
+---
+title: 'Order Tracking'
+description: 'Monitor transaction status and track order history'
+---
+
+## Overview
+
+After broadcasting a transaction, use the order tracking API to monitor its status, view transaction history, and handle failures gracefully.
+
+## Getting Transaction Orders
+
+Retrieve orders for a specific wallet address.
+
+### Basic Usage
+
+```typescript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+const orders = await client.dex.getTransactionOrders({
+  address: '0xa418223777cd2fc6a62388b18386114dadcbd121',
+  chainIndex: '8453',  // Base
+  limit: '10'          // Get 10 most recent orders
+});
+
+if (orders.data[0]?.orders.length > 0) {
+  orders.data[0].orders.forEach(order => {
+    console.log('Order ID:', order.orderId);
+    console.log('Status:', order.txStatus);
+    console.log('TX Hash:', order.txHash);
+  });
+}
+```
+
+### Track Specific Order
+
+```typescript
+const orders = await client.dex.getTransactionOrders({
+  address: '0xa418223777cd2fc6a62388b18386114dadcbd121',
+  chainIndex: '8453',
+  orderId: '31bcfab737dacfc4171b257ff5d2b8effe25b350'
+});
+
+const order = orders.data[0]?.orders[0];
+if (order) {
+  console.log('Order Status:', order.txStatus);
+  console.log('Transaction Hash:', order.txHash);
+  if (order.failReason) {
+    console.log('Failure Reason:', order.failReason);
+  }
+}
+```
+
+## Order Status Values
+
+Orders can have the following status values:
+
+| Status | Value | Description |
+|--------|-------|-------------|
+| Submitted | `0` | Transaction submitted to network |
+| Pending | `1` or `pending` | Transaction pending confirmation |
+| Success | `2` or `success` | Transaction confirmed successfully |
+| Failed | `3` or `failed` | Transaction failed |
+
+### Status Helper Function
+
+```typescript
+function getStatusText(status: string): string {
+  switch (status) {
+    case '0': return 'Submitted';
+    case '1': return 'Pending';
+    case '2': return 'Success';
+    case '3': return 'Failed';
+    case 'pending': return 'Pending';
+    case 'success': return 'Success';
+    case 'failed': return 'Failed';
+    default: return `Unknown (${status})`;
+  }
+}
+
+const status = getStatusText(order.txStatus);
+console.log('Status:', status);
+```
+
+## Real-Time Order Tracking
+
+Poll the API to track order status in real-time.
+
+<CodeGroup>
+```typescript TypeScript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+async function trackOrder(
+  orderId: string,
+  walletAddress: string,
+  chainIndex: string
+) {
+  console.log('=== Order Tracking ===');
+  console.log('Order ID:', orderId);
+  console.log('Wallet:', walletAddress);
+  console.log('Chain:', chainIndex);
+  
+  let attempts = 0;
+  const maxAttempts = 60; // 3 minutes with 3-second intervals
+  
+  while (attempts < maxAttempts) {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+      
+      // Get specific order
+      let orders = await client.dex.getTransactionOrders({
+        address: walletAddress,
+        chainIndex: chainIndex,
+        orderId: orderId
+      });
+
+      // If not found, check recent orders
+      if (!orders.data.length || !orders.data[0].orders.length) {
+        console.log(`Check ${attempts + 1}: Order not found, checking recent...`);
+        orders = await client.dex.getTransactionOrders({
+          address: walletAddress,
+          chainIndex: chainIndex,
+          limit: '20'
+        });
+      }
+
+      // Find our order
+      let foundOrder = null;
+      if (orders.data.length > 0 && orders.data[0].orders.length > 0) {
+        foundOrder = orders.data[0].orders.find(o => o.orderId === orderId);
+      }
+
+      if (foundOrder) {
+        console.log(`Check ${attempts + 1}:`);
+        console.log('- Status:', getStatusText(foundOrder.txStatus));
+        console.log('- TX Hash:', foundOrder.txHash);
+        
+        if (foundOrder.failReason?.trim()) {
+          console.log('- Failure Reason:', foundOrder.failReason);
+        }
+
+        // Check if complete
+        if (foundOrder.txStatus === '2') {
+          console.log('\n🎉 Transaction completed successfully!');
+          console.log('Explorer:', `https://web3.okx.com/explorer/base/tx/${foundOrder.txHash}`);
+          return { success: true, txHash: foundOrder.txHash };
+        } else if (foundOrder.txStatus === '3') {
+          console.log('\n❌ Transaction failed');
+          console.log('Reason:', foundOrder.failReason);
+          return { success: false, txHash: foundOrder.txHash, reason: foundOrder.failReason };
+        }
+      } else {
+        console.log(`Check ${attempts + 1}: Order not found yet...`);
+      }
+      
+      attempts++;
+    } catch (error) {
+      console.error('Error checking status:', error);
+      attempts++;
+    }
+  }
+
+  console.log('\n⏰ Tracking timed out');
+  return { success: false, timedOut: true };
+}
+
+function getStatusText(status: string): string {
+  switch (status) {
+    case '1': return 'Pending';
+    case '2': return 'Success';
+    case '3': return 'Failed';
+    case '0': return 'Submitted';
+    case 'pending': return 'Pending';
+    case 'success': return 'Success';
+    case 'failed': return 'Failed';
+    default: return `Unknown (${status})`;
+  }
+}
+
+// Usage
+trackOrder(
+  '31bcfab737dacfc4171b257ff5d2b8effe25b350',
+  '0xa418223777cd2fc6a62388b18386114dadcbd121',
+  '8453'
+);
+```
+
+```javascript JavaScript
+const { OKXDexClient } = require('@okxweb3/dex-sdk');
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY,
+  secretKey: process.env.OKX_SECRET_KEY,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE,
+  projectId: process.env.OKX_PROJECT_ID
+});
+
+async function trackOrder(orderId, walletAddress, chainIndex) {
+  let attempts = 0;
+  const maxAttempts = 60;
+  
+  while (attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const orders = await client.dex.getTransactionOrders({
+      address: walletAddress,
+      chainIndex: chainIndex,
+      orderId: orderId
+    });
+
+    const order = orders.data[0]?.orders[0];
+    if (order) {
+      console.log('Status:', order.txStatus);
+      
+      if (order.txStatus === '2') {
+        console.log('✅ Transaction successful!');
+        return { success: true, txHash: order.txHash };
+      } else if (order.txStatus === '3') {
+        console.log('❌ Transaction failed');
+        return { success: false, reason: order.failReason };
+      }
+    }
+    
+    attempts++;
+  }
+  
+  return { success: false, timedOut: true };
+}
+```
+</CodeGroup>
+
+## Filtering Orders
+
+### By Status
+
+```typescript
+// Get only successful orders
+const successfulOrders = await client.dex.getTransactionOrders({
+  address: walletAddress,
+  chainIndex: '8453',
+  txStatus: '2',  // Success only
+  limit: '20'
+});
+
+// Get failed orders
+const failedOrders = await client.dex.getTransactionOrders({
+  address: walletAddress,
+  chainIndex: '8453',
+  txStatus: '3',  // Failed only
+  limit: '20'
+});
+```
+
+### Pagination
+
+```typescript
+let cursor: string | undefined;
+const allOrders = [];
+
+do {
+  const orders = await client.dex.getTransactionOrders({
+    address: walletAddress,
+    chainIndex: '8453',
+    limit: '50',
+    cursor: cursor
+  });
+  
+  if (orders.data[0]?.orders) {
+    allOrders.push(...orders.data[0].orders);
+  }
+  
+  // Get cursor for next page (if available)
+  cursor = orders.data[0]?.cursor;
+} while (cursor);
+
+console.log('Total orders:', allOrders.length);
+```
+
+## Complete Broadcast + Track Example
+
+<Steps>
+  <Step title="Broadcast Transaction">
+    ```typescript
+    import { ethers } from 'ethers';
+    import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+    const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+    const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      evm: { wallet: evmWallet }
+    });
+
+    // Get swap data and sign
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '3000000000000000',
+      slippagePercent: '0.05',
+      userWalletAddress: evmWallet.address
+    });
+
+    const txData = swapData.data[0]?.tx;
+    const nonce = await provider.getTransactionCount(evmWallet.address);
+    const signedTx = await evmWallet.signTransaction({
+      to: txData.to,
+      value: txData.value,
+      data: txData.data,
+      gasLimit: txData.gas,
+      maxFeePerGas: txData.maxFeePerGas,
+      maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
+      nonce: nonce,
+      chainId: 8453
+    });
+
+    // Broadcast
+    const broadcastResult = await client.dex.broadcastTransaction({
+      signedTx: signedTx,
+      chainIndex: '8453',
+      address: evmWallet.address,
+      enableMevProtection: true
+    });
+
+    const orderId = broadcastResult.data[0].orderId;
+    const txHash = broadcastResult.data[0].txHash;
+
+    console.log('Transaction broadcasted!');
+    console.log('Order ID:', orderId);
+    console.log('TX Hash:', txHash);
+    ```
+  </Step>
+
+  <Step title="Track Order Status">
+    ```typescript
+    // Track the order
+    console.log('\nTracking order status...');
+    const result = await trackOrder(orderId, evmWallet.address, '8453');
+
+    if (result.success) {
+      console.log('\n✅ Swap completed successfully!');
+      console.log('Final TX Hash:', result.txHash);
+      console.log('Explorer:', `https://web3.okx.com/explorer/base/tx/${result.txHash}`);
+    } else if (result.timedOut) {
+      console.log('\n⏰ Tracking timed out');
+      console.log('Check manually:', `https://web3.okx.com/explorer/base/tx/${txHash}`);
+    } else {
+      console.log('\n❌ Transaction failed:', result.reason);
+    }
+    ```
+  </Step>
+</Steps>
+
+## View All Recent Orders
+
+```typescript
+async function getAllOrders(
+  walletAddress: string,
+  chainIndex: string,
+  limit: string = '10'
+) {
+  console.log('=== Recent Orders ===');
+  console.log('Wallet:', walletAddress);
+  console.log('Chain:', chainIndex);
+  
+  try {
+    const orders = await client.dex.getTransactionOrders({
+      address: walletAddress,
+      chainIndex: chainIndex,
+      limit: limit
+    });
+
+    if (orders.data.length > 0 && orders.data[0].orders.length > 0) {
+      console.log(`\nFound ${orders.data[0].orders.length} recent orders:\n`);
+      
+      orders.data[0].orders.forEach((order, index) => {
+        console.log(`${index + 1}. Order ID: ${order.orderId}`);
+        console.log(`   Status: ${getStatusText(order.txStatus)}`);
+        console.log(`   TX Hash: ${order.txHash}`);
+        console.log(`   Chain: ${order.chainIndex}`);
+        
+        if (order.failReason?.trim()) {
+          console.log(`   Failure Reason: ${order.failReason}`);
+        }
+        console.log('');
+      });
+    } else {
+      console.log('No recent orders found');
+    }
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+  }
+}
+
+// Usage
+getAllOrders('0xa418223777cd2fc6a62388b18386114dadcbd121', '8453', '20');
+```
+
+## API Reference
+
+### getTransactionOrders
+
+**Parameters:**
+- `address` - Wallet address (required)
+- `chainIndex` - Chain identifier (required)
+- `orderId` - Specific order ID to track (optional)
+- `txStatus` - Filter by status: '0', '1', '2', '3' (optional)
+- `cursor` - Pagination cursor (optional)
+- `limit` - Number of orders to return, max 100 (optional, default: 10)
+
+**Returns:**
+- `orders` - Array of order objects:
+  - `orderId` - Unique order identifier
+  - `txHash` - Transaction hash
+  - `txStatus` - Order status ('0', '1', '2', '3')
+  - `chainIndex` - Chain identifier
+  - `failReason` - Failure reason (if failed)
+- `cursor` - Cursor for next page (if more results available)
+
+## Best Practices
+
+### Set Reasonable Timeouts
+
+```typescript
+const maxAttempts = 60;  // 3 minutes at 3-second intervals
+const interval = 3000;    // 3 seconds between checks
+
+// For slower chains, increase timeout
+const slowChainAttempts = 120;  // 6 minutes
+```
+
+### Handle Network Delays
+
+```typescript
+try {
+  const orders = await client.dex.getTransactionOrders({
+    address: walletAddress,
+    chainIndex: chainIndex,
+    orderId: orderId
+  });
+} catch (error) {
+  if (error instanceof Error && error.message.includes('timeout')) {
+    console.log('Network timeout - retrying...');
+    // Retry logic
+  }
+}
+```
+
+### Log Explorer Links
+
+```typescript
+function getExplorerUrl(chainIndex: string, txHash: string): string {
+  const explorers: Record<string, string> = {
+    '1': 'https://web3.okx.com/explorer/ethereum/tx',
+    '56': 'https://web3.okx.com/explorer/bsc/tx',
+    '137': 'https://web3.okx.com/explorer/polygon/tx',
+    '8453': 'https://web3.okx.com/explorer/base/tx',
+    '42161': 'https://web3.okx.com/explorer/arbitrum/tx',
+    '10': 'https://web3.okx.com/explorer/optimism/tx'
+  };
+  
+  const baseUrl = explorers[chainIndex] || 'https://web3.okx.com/explorer';
+  return `${baseUrl}/${txHash}`;
+}
+
+console.log('View on explorer:', getExplorerUrl('8453', txHash));
+```
+
+## Troubleshooting
+
+### Order Not Found
+
+If an order is not found immediately:
+
+```typescript
+// Wait a few seconds and try again
+await new Promise(resolve => setTimeout(resolve, 5000));
+
+// Or query recent orders instead
+const orders = await client.dex.getTransactionOrders({
+  address: walletAddress,
+  chainIndex: chainIndex,
+  limit: '20'  // Get recent orders
+});
+
+const myOrder = orders.data[0]?.orders.find(o => o.orderId === orderId);
+```
+
+### Status Not Updating
+
+Some chains have longer block times:
+
+```typescript
+const blockTimes: Record<string, number> = {
+  '1': 12000,    // Ethereum: ~12s
+  '8453': 2000,  // Base: ~2s
+  '56': 3000,    // BSC: ~3s
+  '137': 2000    // Polygon: ~2s
+};
+
+const interval = blockTimes[chainIndex] || 3000;
+await new Promise(resolve => setTimeout(resolve, interval));
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transaction Broadcasting" icon="satellite-dish" href="/guides/transaction-broadcasting">
+    Learn how to broadcast transactions
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle transaction failures gracefully
+  </Card>
+</CardGroup>

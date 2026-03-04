@@ -1,0 +1,174 @@
+---
+title: "Execute Approval"
+description: "Approve token spending for DEX contracts"
+---
+
+## Method
+
+```typescript
+async executeApproval(params: ApproveTokenParams): Promise<{
+  transactionHash: string;
+  explorerUrl: string;
+}>
+```
+
+Executes a token approval transaction, allowing the DEX contract to spend a specified amount of tokens on behalf of the user. This is required before executing swaps for ERC-20 tokens.
+
+## Parameters
+
+<ParamField path="params" type="ApproveTokenParams" required>
+  Approval request parameters
+
+  <Expandable title="properties">
+    <ParamField path="chainIndex" type="string" required>
+      Chain identifier (e.g., "1" for Ethereum)
+    </ParamField>
+
+    <ParamField path="tokenContractAddress" type="string" required>
+      Contract address of the token to approve
+    </ParamField>
+
+    <ParamField path="approveAmount" type="string" required>
+      Amount to approve (in token's smallest unit). Use a large number like "115792089237316195423570985008687907853269984665640564039457584007913129639935" for unlimited approval.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="transactionHash" type="string">
+  Transaction hash of the approval transaction
+</ResponseField>
+
+<ResponseField name="explorerUrl" type="string">
+  Block explorer URL for the approval transaction
+</ResponseField>
+
+## Configuration Requirements
+
+Requires EVM wallet configuration:
+
+```typescript
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  evm: {
+    wallet: evmWallet // EVMWallet instance
+  }
+});
+```
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+import { EVMWallet } from '@okxweb3/okx-api/evm';
+
+const evmWallet = new EVMWallet('your-private-key');
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  evm: { wallet: evmWallet }
+});
+
+try {
+  // Approve USDC for trading
+  const result = await client.dex.executeApproval({
+    chainIndex: '1',
+    tokenContractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    approveAmount: '115792089237316195423570985008687907853269984665640564039457584007913129639935' // Unlimited
+  });
+
+  console.log('Approval successful!');
+  console.log('Transaction:', result.transactionHash);
+  console.log('Explorer:', result.explorerUrl);
+} catch (error) {
+  console.error('Approval failed:', error.message);
+}
+```
+
+## Response Example
+
+```json
+{
+  "transactionHash": "0xabcdef1234567890...",
+  "explorerUrl": "https://web3.okx.com/explorer/ethereum/tx/0xabcdef1234567890..."
+}
+```
+
+## Workflow
+
+1. Retrieves network configuration for the specified chain
+2. Fetches the DEX approval contract address using `getChainData()`
+3. Creates an approval executor using `SwapExecutorFactory`
+4. Executes the approval transaction with the specified amount
+5. Returns the transaction hash and explorer URL
+
+## Already Approved Tokens
+
+If the token is already approved for the requested amount or more, the method returns:
+
+```json
+{
+  "transactionHash": "",
+  "explorerUrl": "",
+  "alreadyApproved": true,
+  "message": "Token already approved for the requested amount"
+}
+```
+
+## Approval Amounts
+
+### Unlimited Approval
+
+For maximum convenience (but less security):
+
+```typescript
+const MAX_UINT256 = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+
+await client.dex.executeApproval({
+  chainIndex: '1',
+  tokenContractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  approveAmount: MAX_UINT256
+});
+```
+
+### Exact Amount Approval
+
+For better security, approve only the amount needed:
+
+```typescript
+await client.dex.executeApproval({
+  chainIndex: '1',
+  tokenContractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  approveAmount: '1000000000' // 1000 USDC (6 decimals)
+});
+```
+
+## Error Handling
+
+```typescript
+try {
+  const result = await client.dex.executeApproval(params);
+} catch (error) {
+  if (error.message.includes('No dex contract address')) {
+    // Chain not supported or configuration issue
+  } else if (error.message.includes('wallet')) {
+    // EVM wallet not configured
+  } else {
+    // Other errors (network, gas, etc.)
+  }
+}
+```
+
+## Notes
+
+- Only required for ERC-20 tokens (not needed for native tokens like ETH)
+- Approval is chain-specific and token-specific
+- Approval persists until revoked or a new approval is made
+- Consider security implications of unlimited approvals

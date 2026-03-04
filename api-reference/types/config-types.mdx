@@ -1,0 +1,198 @@
+---
+title: "Configuration Types"
+description: "Type definitions for SDK configuration and chain-specific settings"
+---
+
+## OKXConfig
+
+Main configuration interface for the OKX DEX SDK.
+
+<ParamField path="apiKey" type="string" required>
+  OKX API key for authentication
+</ParamField>
+
+<ParamField path="secretKey" type="string" required>
+  OKX secret key for signing requests
+</ParamField>
+
+<ParamField path="apiPassphrase" type="string" required>
+  OKX API passphrase for authentication
+</ParamField>
+
+<ParamField path="projectId" type="string" required>
+  OKX project ID for the DEX API
+</ParamField>
+
+<ParamField path="baseUrl" type="string">
+  Custom base URL for API requests. Defaults to OKX production endpoint
+</ParamField>
+
+<ParamField path="networks" type="NetworkConfigs">
+  Chain-specific configuration settings
+</ParamField>
+
+<ParamField path="solana" type="SolanaConfig">
+  Solana-specific configuration
+</ParamField>
+
+<ParamField path="sui" type="SuiConfig">
+  Sui-specific configuration
+</ParamField>
+
+<ParamField path="evm" type="EVMConfig">
+  EVM-specific configuration
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Request timeout in milliseconds
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  Maximum number of retry attempts for failed requests
+</ParamField>
+
+```typescript
+interface OKXConfig {
+  apiKey: string;
+  secretKey: string;
+  apiPassphrase: string;
+  projectId: string;
+  baseUrl?: string;
+  networks?: NetworkConfigs;
+  solana?: SolanaConfig;
+  sui?: SuiConfig;
+  evm?: EVMConfig;
+  timeout?: number;
+  maxRetries?: number;
+}
+```
+
+## EVMConfig
+
+Configuration for EVM-compatible chains.
+
+<ParamField path="wallet" type="EVMWallet">
+  EVM wallet instance for transaction signing
+</ParamField>
+
+```typescript
+interface EVMConfig {
+  wallet?: EVMWallet;
+}
+```
+
+## SolanaConfig
+
+Configuration for Solana chain.
+
+<ParamField path="wallet" type="Wallet" required>
+  Solana wallet instance for transaction signing
+</ParamField>
+
+<ParamField path="computeUnits" type="number">
+  Compute units for Solana transactions
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  Maximum number of retry attempts for failed transactions
+</ParamField>
+
+```typescript
+interface SolanaConfig {
+  wallet: Wallet;
+  computeUnits?: number;
+  maxRetries?: number;
+}
+```
+
+## SuiConfig
+
+Configuration for Sui chain.
+
+<ParamField path="privateKey" type="string" required>
+  Private key for Sui wallet
+</ParamField>
+
+<ParamField path="walletAddress" type="string" required>
+  Sui wallet address
+</ParamField>
+
+<ParamField path="connection" type="object">
+  Sui connection settings
+  <ParamField path="connection.rpcUrl" type="string" required>
+    RPC endpoint URL for Sui network
+  </ParamField>
+  <ParamField path="connection.wsEndpoint" type="string">
+    WebSocket endpoint URL for Sui network
+  </ParamField>
+</ParamField>
+
+```typescript
+interface SuiConfig {
+  privateKey: string;
+  walletAddress: string;
+  connection?: {
+    rpcUrl: string;
+    wsEndpoint?: string;
+  };
+}
+```
+
+## ChainConfig
+
+Chain-specific configuration settings.
+
+<ParamField path="id" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="explorer" type="string" required>
+  Block explorer base URL
+</ParamField>
+
+<ParamField path="defaultSlippage" type="string" required>
+  Default slippage tolerance percentage
+</ParamField>
+
+<ParamField path="maxSlippage" type="string" required>
+  Maximum allowed slippage percentage
+</ParamField>
+
+<ParamField path="computeUnits" type="number">
+  Compute units for transactions (Solana-specific)
+</ParamField>
+
+<ParamField path="confirmationTimeout" type="number">
+  Transaction confirmation timeout in milliseconds
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  Maximum number of retry attempts
+</ParamField>
+
+<ParamField path="dexContractAddress" type="string">
+  DEX contract address for the chain
+</ParamField>
+
+```typescript
+interface ChainConfig {
+  id: string;
+  explorer: string;
+  defaultSlippage: string;
+  maxSlippage: string;
+  computeUnits?: number;
+  confirmationTimeout?: number;
+  maxRetries?: number;
+  dexContractAddress?: string;
+}
+```
+
+## NetworkConfigs
+
+Mapping of chain indexes to chain configurations.
+
+```typescript
+interface NetworkConfigs {
+  [chainIndex: string]: ChainConfig;
+}
+```

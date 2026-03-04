@@ -1,0 +1,153 @@
+---
+title: "Get Supported Tokens"
+description: "Get all tokens supported for cross-chain transfers on a specific chain"
+---
+
+## Method Signature
+
+```typescript
+async getSupportedTokens(chainIndex: string): Promise<APIResponse<TokenData>>
+```
+
+Retrieves the list of all tokens that can be bridged from or to a specific blockchain network.
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  The chain index identifier (e.g., "1" for Ethereum, "501" for Solana, "42161" for Arbitrum)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of supported token information
+  
+  <ResponseField name="tokenContractAddress" type="string">
+    The contract address of the token
+  </ResponseField>
+  
+  <ResponseField name="tokenSymbol" type="string">
+    Token symbol (e.g., "USDC", "ETH")
+  </ResponseField>
+  
+  <ResponseField name="tokenName" type="string">
+    Full name of the token
+  </ResponseField>
+  
+  <ResponseField name="decimals" type="string">
+    Number of decimal places for the token
+  </ResponseField>
+  
+  <ResponseField name="tokenLogoUrl" type="string">
+    URL to the token's logo image
+  </ResponseField>
+</ResponseField>
+
+## Code Example
+
+```typescript
+import { OKXDexSDK } from '@okxweb3/dex-sdk';
+
+const sdk = new OKXDexSDK({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get all tokens supported for bridging on Ethereum
+const ethereumTokens = await sdk.bridge.getSupportedTokens('1');
+
+console.log(`Found ${ethereumTokens.data.length} supported tokens`);
+
+etheremTokens.data.forEach(token => {
+  console.log(`${token.tokenSymbol} (${token.tokenName})`);
+  console.log(`  Address: ${token.tokenContractAddress}`);
+  console.log(`  Decimals: ${token.decimals}`);
+});
+```
+
+## Use Cases
+
+### Display Available Tokens in UI
+
+```typescript
+// Fetch supported tokens for multiple chains
+const [ethTokens, arbTokens, solTokens] = await Promise.all([
+  sdk.bridge.getSupportedTokens('1'),      // Ethereum
+  sdk.bridge.getSupportedTokens('42161'),  // Arbitrum
+  sdk.bridge.getSupportedTokens('501')     // Solana
+]);
+
+// Build a token selector UI
+const tokenOptions = ethTokens.data.map(token => ({
+  value: token.tokenContractAddress,
+  label: `${token.tokenSymbol} - ${token.tokenName}`,
+  icon: token.tokenLogoUrl,
+  decimals: parseInt(token.decimals)
+}));
+```
+
+### Check if Token is Bridgeable
+
+```typescript
+const isTokenBridgeable = async (
+  chainIndex: string,
+  tokenAddress: string
+): Promise<boolean> => {
+  const supportedTokens = await sdk.bridge.getSupportedTokens(chainIndex);
+  
+  return supportedTokens.data.some(
+    token => token.tokenContractAddress.toLowerCase() === tokenAddress.toLowerCase()
+  );
+};
+
+const canBridge = await isTokenBridgeable(
+  '1',
+  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' // USDC
+);
+```
+
+### Get Token Details
+
+```typescript
+const getTokenDetails = async (
+  chainIndex: string,
+  tokenAddress: string
+) => {
+  const supportedTokens = await sdk.bridge.getSupportedTokens(chainIndex);
+  
+  return supportedTokens.data.find(
+    token => token.tokenContractAddress.toLowerCase() === tokenAddress.toLowerCase()
+  );
+};
+
+const usdcDetails = await getTokenDetails(
+  '1',
+  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+);
+
+if (usdcDetails) {
+  console.log(`Token: ${usdcDetails.tokenSymbol}`);
+  console.log(`Decimals: ${usdcDetails.decimals}`);
+}
+```
+
+## Common Chain Indexes
+
+- `1` - Ethereum
+- `10` - Optimism
+- `56` - BNB Chain
+- `137` - Polygon
+- `42161` - Arbitrum One
+- `8453` - Base
+- `501` - Solana
+- `195` - X Layer

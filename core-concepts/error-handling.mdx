@@ -1,0 +1,677 @@
+---
+title: Error Handling
+description: Learn how to handle errors, implement retry logic, and configure timeouts in the OKX DEX SDK
+---
+
+## Overview
+
+The OKX DEX SDK includes comprehensive error handling with automatic retries, detailed error messages, and configurable timeouts.
+
+## Built-in Retry Logic
+
+The SDK automatically retries failed requests with exponential backoff.
+
+### Default Retry Configuration
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  maxRetries: 3,      // Default: 3 attempts
+  timeout: 30000      // Default: 30 seconds
+});
+```
+
+<Note>
+Retry logic is implemented in `/src/okx/core/http-client.ts:104-151`.
+</Note>
+
+### How Retry Works
+
+1. **Initial attempt** - Request is sent
+2. **On failure** - Wait `1000ms * retry_count`
+3. **Retry** - Request is sent again
+4. **Repeat** - Until success or max retries reached
+
+```typescript
+// Exponential backoff implementation
+retries++;
+await new Promise(resolve => 
+  setTimeout(resolve, 1000 * retries)
+);
+```
+
+**Backoff timing:**
+- First retry: 1 second delay
+- Second retry: 2 seconds delay  
+- Third retry: 3 seconds delay
+
+### Customizing Retry Behavior
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  maxRetries: 5,      // Increase to 5 attempts
+  timeout: 60000      // Increase to 60 seconds
+});
+```
+
+## Error Types
+
+### API Errors
+
+The SDK throws `APIError` instances with detailed information:
+
+```typescript
+class APIError extends Error {
+  status?: number;              // HTTP status code
+  statusText?: string;          // HTTP status text
+  responseBody?: any;           // Full API response
+  requestDetails?: {            // Request information
+    method: string;
+    path: string;
+    params?: Record<string, string>;
+    queryString?: string;
+  };
+}
+```
+
+### Common Error Codes
+
+| HTTP Status | Description | Retry |
+|-------------|-------------|-------|
+| `400` | Bad Request - Invalid parameters | No |
+| `401` | Unauthorized - Invalid credentials | No |
+| `403` | Forbidden - Insufficient permissions | No |
+| `404` | Not Found - Invalid endpoint | No |
+| `429` | Rate Limited - Too many requests | Yes |
+| `500` | Internal Server Error | Yes |
+| `502` | Bad Gateway | Yes |
+| `503` | Service Unavailable | Yes |
+| `504` | Gateway Timeout | Yes |
+
+## Error Handling Patterns
+
+### Basic Error Handling
+
+```typescript
+try {
+  const swap = await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    amount: '1000000000000000000',
+    slippagePercent: '0.005',
+    userWalletAddress: wallet.address
+  });
+  
+  console.log('Swap successful:', swap.transactionId);
+} catch (error) {
+  console.error('Swap failed:', error.message);
+}
+```
+
+### Detailed Error Handling
+
+```typescript
+import { APIError } from '@okx-dex/okx-dex-sdk';
+
+try {
+  const swap = await client.dex.executeSwap({ /* ... */ });
+} catch (error) {
+  if (error instanceof APIError) {
+    console.error('API Error Details:');
+    console.error('  Status:', error.status);
+    console.error('  Message:', error.message);
+    console.error('  Response:', error.responseBody);
+    console.error('  Request:', error.requestDetails);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+### Handling Specific Errors
+
+```typescript
+try {
+  const swap = await client.dex.executeSwap({ /* ... */ });
+} catch (error: any) {
+  // Rate limiting
+  if (error?.status === 429) {
+    console.log('Rate limited. Waiting 60 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 60000));
+    // Retry the operation
+    return client.dex.executeSwap({ /* ... */ });
+  }
+  
+  // Insufficient liquidity
+  if (error.message?.includes('Insufficient liquidity')) {
+    console.log('Not enough liquidity. Try reducing amount.');
+    return null;
+  }
+  
+  // Insufficient balance
+  if (error.message?.includes('Insufficient balance')) {
+    console.log('Wallet balance too low.');
+    return null;
+  }
+  
+  // Slippage exceeded
+  if (error.message?.includes('Slippage too high')) {
+    console.log('Price impact exceeds slippage tolerance.');
+    console.log('Consider increasing slippage or reducing amount.');
+    return null;
+  }
+  
+  // Network errors
+  if (error?.status >= 500) {
+    console.log('Server error. The SDK will automatically retry.');
+    throw error;  // Let SDK retry logic handle it
+  }
+  
+  // Authentication errors
+  if (error?.status === 401 || error?.status === 403) {
+    console.error('Authentication failed. Check your API credentials.');
+    throw error;  // Don't retry auth errors
+  }
+  
+  // Other errors
+  console.error('Unexpected error:', error.message);
+  throw error;
+}
+```
+
+## Common Error Scenarios
+
+### Insufficient Liquidity
+
+**Error**: `"Insufficient liquidity for this trade"`
+
+**Solutions**:
+- Reduce the trade amount
+- Try a different trading route
+- Check DEX liquidity sources
+
+```typescript
+try {
+  const swap = await client.dex.executeSwap({ amount: largeAmount, /* ... */ });
+} catch (error: any) {
+  if (error.message?.includes('Insufficient liquidity')) {
+    // Try with 50% of the amount
+    const smallerAmount = (BigInt(largeAmount) / 2n).toString();
+    return client.dex.executeSwap({ amount: smallerAmount, /* ... */ });
+  }
+  throw error;
+}
+```
+
+### Insufficient Balance
+
+**Error**: `"Insufficient balance"`
+
+**Solutions**:
+- Check wallet balance before trading
+- Account for gas fees (on EVM chains)
+- Ensure approval allowance is sufficient
+
+```typescript
+import { ethers } from 'ethers';
+
+// Check balance before swap
+const balance = await wallet.provider.getBalance(wallet.address);
+const requiredAmount = ethers.parseEther('1.0');
+const gasBuffer = ethers.parseEther('0.01');  // Reserve for gas
+
+if (balance < requiredAmount + gasBuffer) {
+  console.error(`Insufficient balance. Have: ${ethers.formatEther(balance)} ETH`);
+  return;
+}
+
+// Safe to proceed
+const swap = await client.dex.executeSwap({ /* ... */ });
+```
+
+### Slippage Too High
+
+**Error**: `"Slippage too high"` or `"Price impact exceeds tolerance"`
+
+**Solutions**:
+- Increase slippage tolerance
+- Reduce trade amount
+- Wait for better market conditions
+
+```typescript
+let slippage = 0.005;  // Start with 0.5%
+const maxSlippage = 0.05;  // Don't exceed 5%
+
+while (slippage <= maxSlippage) {
+  try {
+    const swap = await client.dex.executeSwap({
+      chainIndex: '8453',
+      fromTokenAddress: fromToken,
+      toTokenAddress: toToken,
+      amount: amount,
+      slippagePercent: slippage.toString(),
+      userWalletAddress: wallet.address
+    });
+    
+    console.log('Swap succeeded with slippage:', slippage);
+    return swap;
+  } catch (error: any) {
+    if (error.message?.includes('Slippage')) {
+      slippage += 0.005;  // Increase by 0.5%
+      console.log(`Retrying with slippage: ${slippage}`);
+      continue;
+    }
+    throw error;
+  }
+}
+
+console.error('Could not complete swap within acceptable slippage');
+```
+
+### Rate Limiting (429)
+
+**Error**: HTTP 429 - Too Many Requests
+
+**Solutions**:
+- Implement backoff strategy
+- Reduce request frequency
+- Use request queuing
+
+```typescript
+class RateLimiter {
+  private queue: Array<() => Promise<any>> = [];
+  private processing = false;
+  private requestsPerSecond = 5;
+  private interval = 1000 / this.requestsPerSecond;
+  
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      
+      this.processQueue();
+    });
+  }
+  
+  private async processQueue() {
+    if (this.processing || this.queue.length === 0) return;
+    
+    this.processing = true;
+    
+    while (this.queue.length > 0) {
+      const task = this.queue.shift()!;
+      await task();
+      await new Promise(resolve => setTimeout(resolve, this.interval));
+    }
+    
+    this.processing = false;
+  }
+}
+
+// Usage
+const limiter = new RateLimiter();
+
+const quote1 = await limiter.execute(() => 
+  client.dex.getQuote({ /* ... */ })
+);
+
+const quote2 = await limiter.execute(() => 
+  client.dex.getQuote({ /* ... */ })
+);
+```
+
+### Network Errors
+
+**Error**: `"Network error"`, `"Failed to fetch"`
+
+**Solutions**:
+- Check internet connectivity
+- Verify RPC endpoint is accessible
+- Ensure firewall allows connections
+
+```typescript
+async function executeWithNetworkRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      const isNetworkError = 
+        error.message?.includes('fetch') ||
+        error.message?.includes('network') ||
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ETIMEDOUT';
+      
+      if (!isNetworkError || i === maxRetries - 1) {
+        throw error;
+      }
+      
+      console.log(`Network error. Retrying (${i + 1}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
+    }
+  }
+  
+  throw new Error('Max retries exceeded');
+}
+
+// Usage
+const swap = await executeWithNetworkRetry(() =>
+  client.dex.executeSwap({ /* ... */ })
+);
+```
+
+## Timeout Configuration
+
+### Request Timeout
+
+Configure global timeout for all API requests:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  timeout: 60000  // 60 second timeout
+});
+```
+
+### Transaction Confirmation Timeout
+
+Set per-chain confirmation timeouts:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  networks: {
+    '8453': {  // Base
+      id: '8453',
+      explorer: 'https://web3.okx.com/explorer/base/tx',
+      defaultSlippage: '0.005',
+      maxSlippage: '1',
+      confirmationTimeout: 120000,  // Wait up to 2 minutes for confirmation
+      maxRetries: 5
+    },
+    '501': {  // Solana
+      id: '501',
+      explorer: 'https://web3.okx.com/explorer/sol/tx',
+      defaultSlippage: '0.005',
+      maxSlippage: '1',
+      confirmationTimeout: 90000,  // 90 seconds for Solana
+      maxRetries: 5
+    }
+  }
+});
+```
+
+### Custom Timeout Wrapper
+
+```typescript
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage = 'Operation timed out'
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+  });
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
+}
+
+// Usage
+try {
+  const swap = await withTimeout(
+    client.dex.executeSwap({ /* ... */ }),
+    30000,  // 30 second timeout
+    'Swap operation timed out after 30 seconds'
+  );
+  console.log('Swap completed:', swap.transactionId);
+} catch (error) {
+  console.error('Error:', error.message);
+}
+```
+
+## Validation Errors
+
+The SDK validates parameters before making API calls:
+
+### Slippage Validation
+
+```typescript
+// Invalid: slippage > 1 (100%)
+try {
+  await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    amount: '1000000000000000000',
+    slippagePercent: '1.5',  // ERROR: Must be between 0 and 1
+    userWalletAddress: wallet.address
+  });
+} catch (error) {
+  // Error: "Slippage must be between 0 and 1"
+}
+```
+
+<Note>
+Slippage validation is at `/src/okx/api/dex.ts:322-329`.
+</Note>
+
+### Auto-Slippage Validation
+
+```typescript
+// Invalid: autoSlippage without maxAutoSlippagePercent
+try {
+  await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    amount: '1000000000000000000',
+    autoSlippage: true,  // ERROR: Missing maxAutoSlippagePercent
+    userWalletAddress: wallet.address
+  });
+} catch (error) {
+  // Error: "maxAutoSlippagePercent must be provided when autoSlippage is enabled"
+}
+
+// Valid: autoSlippage with max
+const swap = await client.dex.executeSwap({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  autoSlippage: true,
+  maxAutoSlippagePercent: '0.05',  // 5% max
+  userWalletAddress: wallet.address
+});
+```
+
+<Note>
+Auto-slippage validation is at `/src/okx/api/dex.ts:332-336`.
+</Note>
+
+## Error Logging
+
+### Development Mode Logging
+
+The SDK includes debug logging in development:
+
+```typescript
+// Set NODE_ENV to enable logging
+process.env.NODE_ENV = 'development';
+
+// Now all requests and responses are logged
+const quote = await client.dex.getQuote({ /* ... */ });
+
+// Console output:
+// Request Details: { url: '...', method: 'GET', headers: {...}, params: {...} }
+// Response: { code: "0", msg: "", data: [...] }
+```
+
+<Note>
+Development logging is at `/src/okx/core/http-client.ts:90-121`.
+</Note>
+
+### Production Error Tracking
+
+Integrate with error tracking services:
+
+```typescript
+import * as Sentry from '@sentry/node';
+
+Sentry.init({ dsn: process.env.SENTRY_DSN });
+
+try {
+  const swap = await client.dex.executeSwap({ /* ... */ });
+} catch (error) {
+  // Log to Sentry with context
+  Sentry.captureException(error, {
+    tags: {
+      operation: 'executeSwap',
+      chainId: '8453'
+    },
+    extra: {
+      amount: '1000000000000000000',
+      fromToken: '0xEee...',
+      toToken: '0x833...'
+    }
+  });
+  
+  throw error;
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Validate Input">
+    Validate parameters before calling SDK methods:
+    
+    ```typescript
+    function validateSwapParams(params: SwapParams) {
+      if (!params.chainIndex) throw new Error('Chain ID required');
+      if (!params.fromTokenAddress) throw new Error('From token required');
+      if (!params.toTokenAddress) throw new Error('To token required');
+      if (!params.amount || BigInt(params.amount) <= 0n) {
+        throw new Error('Invalid amount');
+      }
+      
+      const slippage = parseFloat(params.slippagePercent || '0');
+      if (slippage < 0 || slippage > 1) {
+        throw new Error('Slippage must be between 0 and 1');
+      }
+    }
+    
+    validateSwapParams(swapParams);
+    const swap = await client.dex.executeSwap(swapParams);
+    ```
+  </Accordion>
+  
+  <Accordion title="Implement Graceful Degradation">
+    Provide fallback behavior when errors occur:
+    
+    ```typescript
+    async function getQuoteWithFallback(params: QuoteParams) {
+      try {
+        return await client.dex.getQuote(params);
+      } catch (error) {
+        console.error('Primary quote failed, trying alternative route...');
+        
+        // Try without specific DEX routing
+        const { dexIds, ...fallbackParams } = params;
+        return await client.dex.getQuote(fallbackParams);
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Log All Errors">
+    Maintain comprehensive error logs:
+    
+    ```typescript
+    import winston from 'winston';
+    
+    const logger = winston.createLogger({
+      level: 'error',
+      format: winston.format.json(),
+      transports: [
+        new winston.transports.File({ filename: 'error.log' })
+      ]
+    });
+    
+    try {
+      const swap = await client.dex.executeSwap({ /* ... */ });
+    } catch (error: any) {
+      logger.error('Swap failed', {
+        error: error.message,
+        status: error.status,
+        requestDetails: error.requestDetails,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use TypeScript for Type Safety">
+    Leverage TypeScript to catch errors at compile time:
+    
+    ```typescript
+    import { SwapParams, QuoteParams } from '@okx-dex/okx-dex-sdk';
+    
+    // TypeScript will catch missing/invalid properties
+    const params: SwapParams = {
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '1000000000000000000',
+      slippagePercent: '0.005',
+      userWalletAddress: wallet.address
+    };
+    
+    const swap = await client.dex.executeSwap(params);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Client Initialization" icon="plug" href="/core-concepts/client-initialization">
+    Configure retry and timeout settings
+  </Card>
+  <Card title="Supported Chains" icon="link" href="/core-concepts/supported-chains">
+    View chain-specific error handling
+  </Card>
+</CardGroup>

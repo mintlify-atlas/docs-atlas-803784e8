@@ -1,0 +1,440 @@
+---
+title: 'Transaction Broadcasting'
+description: 'Broadcast signed transactions with MEV protection'
+---
+
+## Overview
+
+The OKX DEX SDK provides transaction broadcasting with built-in MEV (Maximal Extractable Value) protection. This feature helps protect your transactions from front-running and sandwich attacks.
+
+<Note>
+  **API Whitelist Required:** Transaction broadcasting requires your API key to be whitelisted. Contact OKX support to enable this feature.
+</Note>
+
+## Basic Transaction Broadcasting
+
+<Steps>
+  <Step title="Sign Your Transaction">
+    First, create and sign your transaction:
+
+    ```typescript
+    import { OKXDexClient } from '@okxweb3/dex-sdk';
+    import { ethers } from 'ethers';
+    import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+    const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+    const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      evm: { wallet: evmWallet }
+    });
+
+    // Get swap data
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '3000000000000000', // 0.003 ETH
+      slippagePercent: '0.05',
+      userWalletAddress: evmWallet.address
+    });
+
+    const txData = swapData.data[0]?.tx;
+
+    // Sign the transaction
+    const nonce = await provider.getTransactionCount(evmWallet.address);
+    const transaction = {
+      to: txData.to,
+      value: txData.value,
+      data: txData.data,
+      gasLimit: txData.gas,
+      maxFeePerGas: txData.maxFeePerGas,
+      maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
+      nonce: nonce,
+      chainId: 8453
+    };
+
+    const signedTx = await evmWallet.signTransaction(transaction);
+    console.log('Transaction signed');
+    ```
+  </Step>
+
+  <Step title="Broadcast the Transaction">
+    ```typescript
+    const broadcastResult = await client.dex.broadcastTransaction({
+      signedTx: signedTx,
+      chainIndex: '8453',
+      address: evmWallet.address,
+      enableMevProtection: true  // Enable MEV protection
+    });
+
+    console.log('Transaction broadcasted!');
+    console.log('Order ID:', broadcastResult.data[0].orderId);
+    console.log('Transaction Hash:', broadcastResult.data[0].txHash);
+    ```
+  </Step>
+</Steps>
+
+## MEV Protection
+
+MEV protection helps prevent front-running and sandwich attacks by routing your transaction through protected channels.
+
+### Enabling MEV Protection
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTx,
+  chainIndex: '8453',
+  address: evmWallet.address,
+  enableMevProtection: true  // Protects against MEV attacks
+});
+```
+
+### Without MEV Protection
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTx,
+  chainIndex: '8453',
+  address: evmWallet.address,
+  enableMevProtection: false  // Standard public mempool
+});
+```
+
+<Warning>
+  **MEV Risk:** Without MEV protection, your transaction is vulnerable to:
+  - **Front-running:** Others see your transaction and submit a similar one with higher gas
+  - **Sandwich attacks:** Attackers place trades before and after yours to profit from price movement
+  - **Slippage manipulation:** Market makers exploit your slippage tolerance
+</Warning>
+
+## Complete Broadcasting Example
+
+<CodeGroup>
+```typescript TypeScript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+import { ethers } from 'ethers';
+import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: { wallet: evmWallet }
+});
+
+async function broadcastSwap() {
+  try {
+    console.log('=== Complete Swap Workflow with Broadcast ===');
+    console.log('Wallet Address:', evmWallet.address);
+    
+    // Step 1: Get swap data
+    console.log('\n1. Getting swap data...');
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '3000000000000000', // 0.003 ETH
+      slippagePercent: '0.05',
+      userWalletAddress: evmWallet.address
+    });
+
+    const txData = swapData.data[0]?.tx;
+    if (!txData) {
+      throw new Error('No transaction data received');
+    }
+
+    console.log('✅ Swap data received');
+    console.log('- From amount:', swapData.data[0].routerResult.fromTokenAmount);
+    console.log('- To amount:', swapData.data[0].routerResult.toTokenAmount);
+    console.log('- Gas estimate:', txData.gas);
+
+    // Step 2: Sign the transaction
+    console.log('\n2. Signing transaction...');
+    const nonce = await provider.getTransactionCount(evmWallet.address);
+    
+    const transaction = {
+      to: txData.to,
+      value: txData.value,
+      data: txData.data,
+      gasLimit: txData.gas,
+      maxFeePerGas: txData.maxFeePerGas,
+      maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
+      nonce: nonce,
+      chainId: 8453
+    };
+
+    const signedTx = await evmWallet.signTransaction(transaction);
+    console.log('✅ Transaction signed');
+
+    // Step 3: Broadcast with MEV protection
+    console.log('\n3. Broadcasting transaction with MEV protection...');
+    const broadcastResult = await client.dex.broadcastTransaction({
+      signedTx: signedTx,
+      chainIndex: '8453',
+      address: evmWallet.address,
+      enableMevProtection: true
+    });
+
+    console.log('✅ Transaction broadcasted!');
+    console.log('- Order ID:', broadcastResult.data[0].orderId);
+    console.log('- Transaction Hash:', broadcastResult.data[0].txHash);
+    console.log('- Explorer:', `https://web3.okx.com/explorer/base/tx/${broadcastResult.data[0].txHash}`);
+
+    return {
+      orderId: broadcastResult.data[0].orderId,
+      txHash: broadcastResult.data[0].txHash
+    };
+  } catch (error) {
+    console.error('Error in swap workflow:', error);
+    throw error;
+  }
+}
+
+broadcastSwap();
+```
+
+```javascript JavaScript
+const { OKXDexClient } = require('@okxweb3/dex-sdk');
+const { ethers } = require('ethers');
+const { createEVMWallet } = require('@okxweb3/dex-sdk');
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY,
+  secretKey: process.env.OKX_SECRET_KEY,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE,
+  projectId: process.env.OKX_PROJECT_ID,
+  evm: { wallet: evmWallet }
+});
+
+async function broadcastSwap() {
+  try {
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '3000000000000000',
+      slippagePercent: '0.05',
+      userWalletAddress: evmWallet.address
+    });
+
+    const txData = swapData.data[0]?.tx;
+    const nonce = await provider.getTransactionCount(evmWallet.address);
+
+    const signedTx = await evmWallet.signTransaction({
+      to: txData.to,
+      value: txData.value,
+      data: txData.data,
+      gasLimit: txData.gas,
+      maxFeePerGas: txData.maxFeePerGas,
+      maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
+      nonce: nonce,
+      chainId: 8453
+    });
+
+    const result = await client.dex.broadcastTransaction({
+      signedTx: signedTx,
+      chainIndex: '8453',
+      address: evmWallet.address,
+      enableMevProtection: true
+    });
+
+    console.log('Order ID:', result.data[0].orderId);
+    console.log('Transaction Hash:', result.data[0].txHash);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+broadcastSwap();
+```
+</CodeGroup>
+
+## Solana: Jito MEV Protection
+
+For Solana transactions, use Jito for MEV protection:
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTx,
+  chainIndex: '501', // Solana
+  address: solanaWallet.address,
+  jitoSignedTx: jitoSignedTransaction  // Jito-signed transaction
+});
+```
+
+## Advanced Options
+
+### Custom Extra Data
+
+Provide additional metadata with your transaction:
+
+```typescript
+const extraData = {
+  enableMevProtection: true,
+  customField: 'value'
+};
+
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTx,
+  chainIndex: '8453',
+  address: evmWallet.address,
+  extraData: JSON.stringify(extraData)
+});
+```
+
+## Transaction Verification
+
+After broadcasting, verify the transaction:
+
+```typescript
+const { orderId, txHash } = broadcastResult.data[0];
+
+// Track transaction status
+const orders = await client.dex.getTransactionOrders({
+  address: evmWallet.address,
+  chainIndex: '8453',
+  orderId: orderId
+});
+
+const order = orders.data[0]?.orders[0];
+if (order) {
+  console.log('Transaction status:', order.txStatus);
+  console.log('Transaction hash:', order.txHash);
+}
+```
+
+## Error Handling
+
+### Handle Broadcast Failures
+
+```typescript
+try {
+  const broadcastResult = await client.dex.broadcastTransaction({
+    signedTx: signedTx,
+    chainIndex: '8453',
+    address: evmWallet.address,
+    enableMevProtection: true
+  });
+  
+  console.log('Success:', broadcastResult.data[0].txHash);
+} catch (error) {
+  if (error instanceof Error) {
+    if (error.message.includes('nonce')) {
+      console.error('Nonce error - transaction may already be pending');
+    } else if (error.message.includes('gas')) {
+      console.error('Gas estimation error - increase gas limit');
+    } else if (error.message.includes('whitelist')) {
+      console.error('API key not whitelisted for broadcasting');
+    } else {
+      console.error('Broadcast failed:', error.message);
+    }
+  }
+}
+```
+
+### Retry Logic
+
+```typescript
+async function broadcastWithRetry(params: any, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await client.dex.broadcastTransaction(params);
+      return result;
+    } catch (error) {
+      console.log(`Attempt ${i + 1} failed, retrying...`);
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
+    }
+  }
+}
+
+const result = await broadcastWithRetry({
+  signedTx: signedTx,
+  chainIndex: '8453',
+  address: evmWallet.address,
+  enableMevProtection: true
+});
+```
+
+## Best Practices
+
+### Always Use MEV Protection
+
+For production applications, always enable MEV protection:
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTx,
+  chainIndex: '8453',
+  address: evmWallet.address,
+  enableMevProtection: true  // Always true for production
+});
+```
+
+### Verify Network Connection
+
+```typescript
+const network = await provider.getNetwork();
+console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
+
+if (network.chainId !== 8453) {
+  throw new Error(`Wrong network. Expected Base (8453), got ${network.chainId}`);
+}
+```
+
+### Monitor Gas Prices
+
+Check gas prices before broadcasting:
+
+```typescript
+const gasPrice = await client.dex.getGasPrice('8453');
+const currentGwei = Number(gasPrice.data[0].maxFeePerGas) / 1e9;
+
+if (currentGwei > 50) {
+  console.warn('High gas prices detected:', currentGwei, 'gwei');
+  // Consider waiting or using a different chain
+}
+```
+
+## API Reference
+
+### broadcastTransaction
+
+**Parameters:**
+- `signedTx` - Signed transaction hex string (required)
+- `chainIndex` - Chain identifier (required)
+- `address` - Wallet address (required)
+- `enableMevProtection` - Enable MEV protection (optional, recommended: true)
+- `jitoSignedTx` - Jito-signed transaction for Solana (optional)
+- `extraData` - Additional metadata as JSON string (optional)
+
+**Returns:**
+- `orderId` - Unique order identifier for tracking
+- `txHash` - Transaction hash
+
+<Note>
+  **Whitelist Requirement:** This endpoint requires API key whitelisting. Contact OKX support to enable broadcasting for your API key.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Order Tracking" icon="magnifying-glass" href="/guides/order-tracking">
+    Track your broadcasted transactions
+  </Card>
+  <Card title="Gas Estimation" icon="gas-pump" href="/guides/gas-estimation">
+    Optimize gas costs before broadcasting
+  </Card>
+</CardGroup>

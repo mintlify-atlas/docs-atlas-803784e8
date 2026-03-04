@@ -1,0 +1,235 @@
+---
+title: "Build Cross-Chain Swap"
+description: "Build a cross-chain swap transaction ready for signing"
+---
+
+## Method Signature
+
+```typescript
+async buildCrossChainSwap(params: CrossChainSwapParams): Promise<APIResponse<any>>
+```
+
+Builds a transaction for executing a cross-chain token swap. This method extends the quote parameters with user wallet information and returns a transaction ready to be signed and broadcast.
+
+## Parameters
+
+### Required Parameters
+
+<ParamField path="fromChainIndex" type="string" required>
+  Source chain index identifier (e.g., "1" for Ethereum, "501" for Solana)
+</ParamField>
+
+<ParamField path="toChainIndex" type="string" required>
+  Destination chain index identifier
+</ParamField>
+
+<ParamField path="fromChainId" type="string" required>
+  Source chain ID (e.g., "1" for Ethereum mainnet)
+</ParamField>
+
+<ParamField path="toChainId" type="string" required>
+  Destination chain ID
+</ParamField>
+
+<ParamField path="fromTokenAddress" type="string" required>
+  Contract address of the token to swap from
+</ParamField>
+
+<ParamField path="toTokenAddress" type="string" required>
+  Contract address of the token to swap to
+</ParamField>
+
+<ParamField path="amount" type="string" required>
+  Amount to swap in the smallest unit (e.g., wei for ETH)
+</ParamField>
+
+<ParamField path="slippagePercent" type="string" required>
+  Maximum acceptable slippage as a decimal (e.g., "0.005" for 0.5%). Must be between 0.002 (0.2%) and 0.5 (50%)
+</ParamField>
+
+<ParamField path="userWalletAddress" type="string" required>
+  The wallet address that will execute the swap
+</ParamField>
+
+### Optional Parameters
+
+<ParamField path="receiveAddress" type="string">
+  Address to receive the swapped tokens (defaults to userWalletAddress)
+</ParamField>
+
+<ParamField path="referrerAddress" type="string">
+  Referrer address for fee sharing
+</ParamField>
+
+<ParamField path="feePercent" type="string">
+  Referrer fee percentage
+</ParamField>
+
+<ParamField path="sort" type="string">
+  Sort order for bridge options (e.g., "cost", "time")
+</ParamField>
+
+<ParamField path="dexIds" type="string">
+  Comma-separated list of DEX IDs to include in routing
+</ParamField>
+
+<ParamField path="allowBridge" type="string">
+  Comma-separated list of bridge IDs to allow
+</ParamField>
+
+<ParamField path="denyBridge" type="string">
+  Comma-separated list of bridge IDs to exclude
+</ParamField>
+
+<ParamField path="onlyBridge" type="string">
+  Only use bridge transfers, skip DEX aggregation
+</ParamField>
+
+<ParamField path="priceImpactProtectionPercentage" type="string">
+  Maximum acceptable price impact percentage
+</ParamField>
+
+<ParamField path="memo" type="string">
+  Optional memo or note for the transaction
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array containing transaction data
+  
+  <ResponseField name="tx" type="object">
+    Transaction object ready for signing
+    
+    <ResponseField name="from" type="string">
+      Sender address
+    </ResponseField>
+    
+    <ResponseField name="to" type="string">
+      Recipient contract address
+    </ResponseField>
+    
+    <ResponseField name="data" type="string">
+      Encoded transaction data
+    </ResponseField>
+    
+    <ResponseField name="value" type="string">
+      ETH/native token value to send
+    </ResponseField>
+    
+    <ResponseField name="gas" type="string">
+      Gas limit
+    </ResponseField>
+    
+    <ResponseField name="gasPrice" type="string">
+      Gas price in wei
+    </ResponseField>
+    
+    <ResponseField name="maxPriorityFeePerGas" type="string">
+      Maximum priority fee per gas (EIP-1559)
+    </ResponseField>
+    
+    <ResponseField name="minReceiveAmount" type="string">
+      Minimum amount of tokens to receive (after slippage)
+    </ResponseField>
+    
+    <ResponseField name="maxSpendAmount" type="string">
+      Maximum amount of tokens to spend
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="routerResult" type="object">
+    Routing information
+    
+    <ResponseField name="fromTokenAmount" type="string">
+      Amount of source tokens
+    </ResponseField>
+    
+    <ResponseField name="toTokenAmount" type="string">
+      Expected amount of destination tokens
+    </ResponseField>
+    
+    <ResponseField name="estimateGasFee" type="string">
+      Estimated gas fee
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+## Code Example
+
+```typescript
+import { OKXDexSDK } from '@okxweb3/dex-sdk';
+import { ethers } from 'ethers';
+
+const sdk = new OKXDexSDK({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Build a cross-chain swap transaction
+const swapTx = await sdk.bridge.buildCrossChainSwap({
+  fromChainIndex: '1',        // Ethereum
+  toChainIndex: '42161',      // Arbitrum
+  fromChainId: '1',
+  toChainId: '42161',
+  fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC on Ethereum
+  toTokenAddress: '0xFF970a61A04b1cA14834A43f5dE4533eBDDB5CC8',   // USDC on Arbitrum
+  amount: '1000000000',       // 1000 USDC (6 decimals)
+  slippagePercent: '0.005',   // 0.5% slippage
+  userWalletAddress: '0x1234...', // Your wallet address
+  receiveAddress: '0x5678...'     // Optional: different receive address
+});
+
+const txData = swapTx.data[0].tx;
+
+// Sign and send the transaction using ethers.js
+const provider = new ethers.providers.Web3Provider(window.ethereum);
+const signer = provider.getSigner();
+
+const transaction = {
+  from: txData.from,
+  to: txData.to,
+  data: txData.data,
+  value: txData.value,
+  gasLimit: txData.gas,
+  gasPrice: txData.gasPrice
+};
+
+const txResponse = await signer.sendTransaction(transaction);
+const receipt = await txResponse.wait();
+
+console.log('Transaction hash:', receipt.transactionHash);
+```
+
+## Error Handling
+
+```typescript
+try {
+  const swapTx = await sdk.bridge.buildCrossChainSwap(params);
+} catch (error) {
+  if (error.message.includes('userWalletAddress is required')) {
+    console.error('Missing wallet address');
+  } else if (error.message.includes('Slippage must be between')) {
+    console.error('Invalid slippage value');
+  } else {
+    console.error('Failed to build swap:', error);
+  }
+}
+```
+
+## Validation Rules
+
+- `userWalletAddress` is required and must be a valid address
+- Slippage must be between 0.002 (0.2%) and 0.5 (50%)
+- All chain and token parameters must be valid
+- Amount must be sufficient to cover fees and minimum swap amounts

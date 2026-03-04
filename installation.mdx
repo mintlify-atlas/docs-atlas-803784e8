@@ -1,0 +1,348 @@
+---
+title: "Installation"
+description: "Install and configure the OKX DEX SDK in your project"
+---
+
+## Prerequisites
+
+Before installing the OKX DEX SDK, ensure you have:
+
+<AccordionGroup>
+  <Accordion icon="node" title="Node.js 16 or higher">
+    The SDK requires Node.js version 16.0.0 or higher. Check your version:
+    
+    ```bash
+    node --version
+    ```
+    
+    Download the latest version from [nodejs.org](https://nodejs.org)
+  </Accordion>
+
+  <Accordion icon="key" title="OKX API Credentials">
+    You'll need API credentials from OKX to use the SDK:
+    
+    - **API Key** - Your unique API key
+    - **Secret Key** - Your API secret for signing requests
+    - **Passphrase** - Your API passphrase
+    - **Project ID** - Your project identifier
+    
+    <Note>
+      Sign up for API access at [OKX Developer Portal](https://www.okx.com/web3). API credentials are required for all DEX operations.
+    </Note>
+  </Accordion>
+
+  <Accordion icon="wallet" title="Blockchain Wallet (Optional)">
+    For executing swaps (not just quotes), you'll need:
+    
+    - **Private Key** - For signing transactions
+    - **RPC URL** - Connection to the blockchain network
+    
+    <Warning>
+      Never commit private keys to version control. Use environment variables for sensitive data.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Install the Package
+
+Install the SDK using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install @okx-dex/okx-dex-sdk
+```
+
+```bash yarn
+yarn add @okx-dex/okx-dex-sdk
+```
+
+```bash pnpm
+pnpm add @okx-dex/okx-dex-sdk
+```
+
+</CodeGroup>
+
+The SDK is distributed as a TypeScript package with full type definitions included.
+
+## Install Required Dependencies
+
+Depending on which blockchains you plan to use, install the corresponding dependencies:
+
+<Tabs>
+  <Tab title="EVM Chains">
+    For Ethereum, Base, Polygon, and other EVM-compatible chains:
+    
+    <CodeGroup>
+    
+    ```bash npm
+    npm install ethers dotenv
+    ```
+    
+    ```bash yarn
+    yarn add ethers dotenv
+    ```
+    
+    ```bash pnpm
+    pnpm add ethers dotenv
+    ```
+    
+    </CodeGroup>
+    
+    The SDK requires:
+    - **ethers** (v6.14.3 or higher) - For EVM wallet and transaction handling
+    - **dotenv** - For managing environment variables
+  </Tab>
+  
+  <Tab title="Solana">
+    For Solana blockchain:
+    
+    <CodeGroup>
+    
+    ```bash npm
+    npm install @solana/web3.js dotenv
+    ```
+    
+    ```bash yarn
+    yarn add @solana/web3.js dotenv
+    ```
+    
+    ```bash pnpm
+    pnpm add @solana/web3.js dotenv
+    ```
+    
+    </CodeGroup>
+    
+    - **@solana/web3.js** (v1.98.2 or higher) - For Solana interactions
+  </Tab>
+  
+  <Tab title="Sui">
+    For Sui blockchain:
+    
+    <CodeGroup>
+    
+    ```bash npm
+    npm install @mysten/sui dotenv
+    ```
+    
+    ```bash yarn
+    yarn add @mysten/sui dotenv
+    ```
+    
+    ```bash pnpm
+    pnpm add @mysten/sui dotenv
+    ```
+    
+    </CodeGroup>
+    
+    - **@mysten/sui** (v1.20.0 or higher) - For Sui blockchain support
+  </Tab>
+</Tabs>
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in your project root with your credentials:
+
+```bash .env
+# OKX API Credentials (Required)
+OKX_API_KEY=your_api_key_here
+OKX_SECRET_KEY=your_secret_key_here
+OKX_API_PASSPHRASE=your_passphrase_here
+OKX_PROJECT_ID=your_project_id_here
+
+# EVM Configuration (for Ethereum, Base, Polygon, etc.)
+EVM_RPC_URL=https://mainnet.base.org
+EVM_WALLET_ADDRESS=0x...
+EVM_PRIVATE_KEY=0x...
+
+# Solana Configuration
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+SOLANA_WALLET_ADDRESS=...
+SOLANA_PRIVATE_KEY=...
+
+# Sui Configuration
+SUI_RPC_URL=https://sui-mainnet.blockvision.org
+SUI_WALLET_ADDRESS=0x...
+SUI_PRIVATE_KEY=...
+```
+
+<Warning>
+  **Security Best Practices**
+  
+  - Never commit `.env` files to version control
+  - Add `.env` to your `.gitignore` file
+  - Use different credentials for development and production
+  - Rotate API keys regularly
+</Warning>
+
+### TypeScript Configuration
+
+Ensure your `tsconfig.json` includes proper ES module support:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node"
+  }
+}
+```
+
+## Verify Installation
+
+Create a simple test file to verify your installation:
+
+```typescript test.ts
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+import 'dotenv/config';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+async function test() {
+  // Get a simple quote to verify API connection
+  const quote = await client.dex.getQuote({
+    chainIndex: '8453', // Base
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // ETH
+    toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+    amount: '1000000000000000000', // 1 ETH
+    slippagePercent: '0.5'
+  });
+  
+  console.log('SDK is working! Quote received:');
+  console.log(`${quote.data[0].fromToken.tokenSymbol} → ${quote.data[0].toToken.tokenSymbol}`);
+}
+
+test();
+```
+
+Run the test:
+
+```bash
+npx ts-node test.ts
+```
+
+You should see output confirming the SDK can connect to OKX APIs.
+
+## Common Installation Issues
+
+<AccordionGroup>
+  <Accordion icon="exclamation-triangle" title="Module not found errors">
+    If you see `Cannot find module` errors, ensure all peer dependencies are installed:
+    
+    ```bash
+    npm install ethers @solana/web3.js @mysten/sui dotenv
+    ```
+  </Accordion>
+  
+  <Accordion icon="lock" title="Authentication errors">
+    If you get `401 Unauthorized` or authentication errors:
+    
+    - Verify your API credentials are correct in `.env`
+    - Ensure there are no extra spaces in credential values
+    - Check that your API key has the necessary permissions
+    - Verify the Project ID matches your API key
+  </Accordion>
+  
+  <Accordion icon="network-wired" title="Network/timeout errors">
+    For network connection issues:
+    
+    - Check your internet connection
+    - Verify RPC URLs are accessible
+    - Try increasing the timeout in client configuration:
+    
+    ```typescript
+    const client = new OKXDexClient({
+      // ... other config
+      timeout: 60000 // 60 seconds
+    });
+    ```
+  </Accordion>
+  
+  <Accordion icon="code" title="TypeScript errors">
+    If you encounter TypeScript compilation errors:
+    
+    - Ensure you're using TypeScript 5.0 or higher
+    - Check that `esModuleInterop` is enabled in `tsconfig.json`
+    - Try deleting `node_modules` and reinstalling:
+    
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Configuration
+
+### Custom Timeout and Retries
+
+Configure request timeout and retry behavior:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  timeout: 30000,    // Request timeout in milliseconds
+  maxRetries: 3      // Number of retry attempts
+});
+```
+
+### Chain-Specific Configuration
+
+Configure wallets for multiple chains:
+
+```typescript
+import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+import { createWallet } from '@okx-dex/okx-dex-sdk/core/wallet';
+import { ethers } from 'ethers';
+import { Connection } from '@solana/web3.js';
+
+// EVM wallet setup
+const evmProvider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, evmProvider);
+
+// Solana wallet setup
+const solanaConnection = new Connection(process.env.SOLANA_RPC_URL!);
+const solanaWallet = createWallet(process.env.SOLANA_PRIVATE_KEY!, solanaConnection);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: {
+    wallet: evmWallet
+  },
+  solana: {
+    wallet: solanaWallet,
+    computeUnits: 300000,
+    maxRetries: 3
+  }
+});
+```
+
+## Next Steps
+
+<Card
+  title="Start building with the Quickstart guide"
+  icon="rocket"
+  href="/quickstart"
+>
+  Learn how to execute your first token swap with real code examples
+</Card>

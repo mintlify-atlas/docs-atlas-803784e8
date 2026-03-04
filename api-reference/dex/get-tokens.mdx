@@ -1,0 +1,205 @@
+---
+title: "Get Tokens"
+description: "Get list of supported tokens for a specific chain"
+---
+
+## Method
+
+```typescript
+async getTokens(chainIndex: string): Promise<APIResponse<TokenData>>
+```
+
+Retrieves a list of all supported tokens for a specific blockchain network.
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier (e.g., "1" for Ethereum, "501" for Solana, "137" for Polygon)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="TokenData[]">
+  Array of token information objects
+
+  <Expandable title="TokenData properties">
+    <ResponseField name="decimals" type="string">
+      Number of decimal places for the token
+    </ResponseField>
+
+    <ResponseField name="tokenContractAddress" type="string">
+      Token contract address
+    </ResponseField>
+
+    <ResponseField name="tokenLogoUrl" type="string">
+      URL to token logo image
+    </ResponseField>
+
+    <ResponseField name="tokenName" type="string">
+      Full token name
+    </ResponseField>
+
+    <ResponseField name="tokenSymbol" type="string">
+      Token symbol/ticker
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get all tokens on Ethereum
+const tokens = await client.dex.getTokens('1');
+
+console.log(`Found ${tokens.data.length} tokens`);
+
+// Find a specific token
+const usdc = tokens.data.find(t => t.tokenSymbol === 'USDC');
+console.log('USDC:', usdc);
+
+// List all token symbols
+const symbols = tokens.data.map(t => t.tokenSymbol);
+console.log('Symbols:', symbols);
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "decimals": "18",
+      "tokenContractAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      "tokenLogoUrl": "https://static.okx.com/cdn/wallet/logo/eth.png",
+      "tokenName": "Ethereum",
+      "tokenSymbol": "ETH"
+    },
+    {
+      "decimals": "6",
+      "tokenContractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "tokenLogoUrl": "https://static.okx.com/cdn/wallet/logo/usdc.png",
+      "tokenName": "USD Coin",
+      "tokenSymbol": "USDC"
+    },
+    {
+      "decimals": "6",
+      "tokenContractAddress": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "tokenLogoUrl": "https://static.okx.com/cdn/wallet/logo/usdt.png",
+      "tokenName": "Tether USD",
+      "tokenSymbol": "USDT"
+    }
+  ]
+}
+```
+
+## Supported Chains
+
+The method supports all chains configured in the OKX DEX aggregator:
+
+- **Ethereum (1)**: Mainnet EVM tokens
+- **Solana (501)**: SPL tokens
+- **Polygon (137)**: Polygon PoS tokens
+- **BSC (56)**: Binance Smart Chain tokens
+- **Arbitrum (42161)**: Arbitrum One tokens
+- **Optimism (10)**: Optimism tokens
+- **Base (8453)**: Base tokens
+- **Avalanche (43114)**: Avalanche C-Chain tokens
+- And many more...
+
+## Use Cases
+
+### Token Selector UI
+
+```typescript
+const tokens = await client.dex.getTokens('1');
+
+// Build token selector dropdown
+const tokenOptions = tokens.data.map(token => ({
+  label: `${token.tokenSymbol} - ${token.tokenName}`,
+  value: token.tokenContractAddress,
+  icon: token.tokenLogoUrl,
+  decimals: parseInt(token.decimals)
+}));
+```
+
+### Token Validation
+
+```typescript
+const tokens = await client.dex.getTokens('1');
+
+function isTokenSupported(address: string): boolean {
+  return tokens.data.some(
+    t => t.tokenContractAddress.toLowerCase() === address.toLowerCase()
+  );
+}
+
+function getTokenInfo(address: string) {
+  return tokens.data.find(
+    t => t.tokenContractAddress.toLowerCase() === address.toLowerCase()
+  );
+}
+```
+
+### Search and Filter
+
+```typescript
+const tokens = await client.dex.getTokens('1');
+
+// Search by symbol or name
+function searchTokens(query: string) {
+  const q = query.toLowerCase();
+  return tokens.data.filter(
+    t => t.tokenSymbol.toLowerCase().includes(q) ||
+         t.tokenName.toLowerCase().includes(q)
+  );
+}
+
+const stablecoins = searchTokens('usd');
+console.log('Stablecoins:', stablecoins.map(t => t.tokenSymbol));
+```
+
+## Caching Recommendations
+
+Token lists don't change frequently. Consider caching the results:
+
+```typescript
+class TokenCache {
+  private cache = new Map<string, { data: TokenData[], timestamp: number }>();
+  private TTL = 3600000; // 1 hour
+
+  async getTokens(chainIndex: string): Promise<TokenData[]> {
+    const cached = this.cache.get(chainIndex);
+    
+    if (cached && Date.now() - cached.timestamp < this.TTL) {
+      return cached.data;
+    }
+
+    const response = await client.dex.getTokens(chainIndex);
+    this.cache.set(chainIndex, {
+      data: response.data,
+      timestamp: Date.now()
+    });
+
+    return response.data;
+  }
+}
+```

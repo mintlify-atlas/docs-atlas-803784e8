@@ -1,0 +1,313 @@
+---
+title: "Broadcast Transaction"
+description: "Broadcast a signed transaction to the blockchain"
+---
+
+## Method
+
+```typescript
+async broadcastTransaction(params: BroadcastTransactionParams): Promise<APIResponse<BroadcastTransactionData>>
+```
+
+Broadcasts a signed transaction to the blockchain network and returns an order ID for tracking.
+
+## Parameters
+
+<ParamField path="params" type="BroadcastTransactionParams" required>
+  Broadcast transaction parameters
+
+  <Expandable title="properties">
+    <ParamField path="signedTx" type="string" required>
+      Signed transaction data (hex string for EVM, base64 for Solana)
+    </ParamField>
+
+    <ParamField path="chainIndex" type="string" required>
+      Chain identifier (e.g., "1" for Ethereum, "501" for Solana)
+    </ParamField>
+
+    <ParamField path="address" type="string" required>
+      Sender wallet address
+    </ParamField>
+
+    <ParamField path="extraData" type="string">
+      Additional metadata as JSON string
+    </ParamField>
+
+    <ParamField path="enableMevProtection" type="boolean">
+      Enable MEV protection for the transaction (EVM chains only)
+    </ParamField>
+
+    <ParamField path="jitoSignedTx" type="string">
+      Jito bundle signed transaction (Solana only, for MEV protection)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="BroadcastTransactionData[]">
+  Array containing broadcast result
+
+  <Expandable title="BroadcastTransactionData properties">
+    <ResponseField name="orderId" type="string">
+      Unique order ID for tracking the transaction
+    </ResponseField>
+
+    <ResponseField name="txHash" type="string">
+      Transaction hash/signature
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+### EVM Transaction
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+import { ethers } from 'ethers';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get swap data
+const swapData = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+});
+
+const tx = swapData.data[0].tx;
+
+// Sign the transaction
+const wallet = new ethers.Wallet('your-private-key');
+const signedTx = await wallet.signTransaction({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value,
+  gasLimit: tx.gas,
+  maxFeePerGas: tx.gasPrice,
+  maxPriorityFeePerGas: tx.maxPriorityFeePerGas,
+  nonce: await wallet.getTransactionCount(),
+  chainId: 1
+});
+
+// Broadcast the transaction
+const result = await client.dex.broadcastTransaction({
+  signedTx,
+  chainIndex: '1',
+  address: wallet.address
+});
+
+console.log('Order ID:', result.data[0].orderId);
+console.log('Transaction Hash:', result.data[0].txHash);
+```
+
+### With MEV Protection
+
+```typescript
+const result = await client.dex.broadcastTransaction({
+  signedTx: signedTransaction,
+  chainIndex: '1',
+  address: walletAddress,
+  enableMevProtection: true
+});
+
+console.log('Transaction broadcasted with MEV protection');
+```
+
+### Solana Transaction
+
+```typescript
+import { Connection, Transaction } from '@solana/web3.js';
+
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+
+// Get swap instruction data
+const instructionData = await client.dex.getSolanaSwapInstruction({
+  chainIndex: '501',
+  fromTokenAddress: 'So11111111111111111111111111111111111111112',
+  toTokenAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  amount: '1000000000',
+  slippagePercent: '0.005',
+  userWalletAddress: 'YourSolanaAddress'
+});
+
+// Build and sign transaction
+const transaction = new Transaction();
+// ... add instructions from instructionData
+const signedTx = await wallet.signTransaction(transaction);
+const serialized = signedTx.serialize().toString('base64');
+
+// Broadcast
+const result = await client.dex.broadcastTransaction({
+  signedTx: serialized,
+  chainIndex: '501',
+  address: wallet.publicKey.toString()
+});
+```
+
+### Solana with Jito (MEV Protection)
+
+```typescript
+const result = await client.dex.broadcastTransaction({
+  signedTx: regularSignedTx,
+  chainIndex: '501',
+  address: walletAddress,
+  jitoSignedTx: jitoSignedTx // Jito bundle transaction
+});
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "orderId": "1234567890abcdef",
+    "txHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  }]
+}
+```
+
+## Use Cases
+
+### Track Transaction Status
+
+Use the returned `orderId` to track the transaction:
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction(params);
+const orderId = broadcastResult.data[0].orderId;
+
+// Track transaction status
+const orders = await client.dex.getTransactionOrders({
+  address: params.address,
+  chainIndex: params.chainIndex,
+  orderId: orderId
+});
+
+console.log('Transaction status:', orders.data[0].orders[0].txStatus);
+```
+
+### Error Handling
+
+```typescript
+try {
+  const result = await client.dex.broadcastTransaction(params);
+  console.log('Success:', result.data[0].txHash);
+} catch (error) {
+  if (error.message.includes('nonce too low')) {
+    console.error('Transaction nonce conflict');
+  } else if (error.message.includes('insufficient funds')) {
+    console.error('Insufficient balance for gas');
+  } else if (error.message.includes('replacement transaction underpriced')) {
+    console.error('Gas price too low to replace pending transaction');
+  } else {
+    console.error('Broadcast failed:', error.message);
+  }
+}
+```
+
+### Retry Logic
+
+```typescript
+async function broadcastWithRetry(
+  params: BroadcastTransactionParams,
+  maxRetries: number = 3
+) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await client.dex.broadcastTransaction(params);
+      return result;
+    } catch (error) {
+      console.log(`Attempt ${i + 1} failed:`, error.message);
+      
+      if (i === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
+    }
+  }
+}
+```
+
+## MEV Protection
+
+### EVM Chains
+
+Enable MEV protection for EVM transactions:
+
+```typescript
+const result = await client.dex.broadcastTransaction({
+  signedTx,
+  chainIndex: '1',
+  address: walletAddress,
+  enableMevProtection: true // Routes through private mempool
+});
+```
+
+### Solana (Jito)
+
+Use Jito bundles for Solana MEV protection:
+
+```typescript
+// Sign both regular and Jito transactions
+const regularTx = await wallet.signTransaction(transaction);
+const jitoTx = await wallet.signTransaction(jitoTransaction);
+
+const result = await client.dex.broadcastTransaction({
+  signedTx: regularTx.serialize().toString('base64'),
+  chainIndex: '501',
+  address: wallet.publicKey.toString(),
+  jitoSignedTx: jitoTx.serialize().toString('base64')
+});
+```
+
+## Extra Data
+
+Pass additional metadata with the transaction:
+
+```typescript
+const extraData = JSON.stringify({
+  source: 'my-dapp',
+  version: '1.0.0',
+  metadata: {
+    swapType: 'exact-input',
+    deadline: Date.now() + 300000
+  }
+});
+
+const result = await client.dex.broadcastTransaction({
+  signedTx,
+  chainIndex: '1',
+  address: walletAddress,
+  extraData
+});
+```
+
+## Notes
+
+- The `orderId` can be used with `getTransactionOrders()` to track transaction status
+- MEV protection may result in slightly slower transaction confirmation
+- For Solana, transactions must be base64-encoded
+- For EVM, transactions must be hex-encoded (with or without '0x' prefix)
+- The method validates the signature before broadcasting

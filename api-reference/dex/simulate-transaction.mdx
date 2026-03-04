@@ -1,0 +1,384 @@
+---
+title: "Simulate Transaction"
+description: "Simulate a transaction before execution to preview outcomes and detect errors"
+---
+
+## Method
+
+```typescript
+async simulateTransaction(params: SwapSimulationParams): Promise<SimulationResult>
+```
+
+Simulates a transaction execution without broadcasting it to the blockchain. This allows you to preview asset changes, detect potential failures, and identify risks before executing the actual transaction.
+
+## Parameters
+
+<ParamField path="params" type="SwapSimulationParams" required>
+  Transaction simulation parameters
+
+  <Expandable title="properties">
+    <ParamField path="fromAddress" type="string" required>
+      Sender wallet address
+    </ParamField>
+
+    <ParamField path="toAddress" type="string" required>
+      Contract or recipient address
+    </ParamField>
+
+    <ParamField path="chainIndex" type="string" required>
+      Chain identifier (e.g., "1" for Ethereum)
+    </ParamField>
+
+    <ParamField path="txAmount" type="string" required>
+      Transaction value in wei
+    </ParamField>
+
+    <ParamField path="extJson" type="object" required>
+      Extended transaction data
+      <Expandable title="properties">
+        <ParamField path="inputData" type="string" required>
+          Encoded transaction data (hex string)
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="gasPrice" type="string" required>
+      Gas price in wei
+    </ParamField>
+
+    <ParamField path="includeDebug" type="boolean" required>
+      Include debug logs in the response
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Whether the simulation was successful (transaction would succeed)
+</ResponseField>
+
+<ResponseField name="gasUsed" type="string">
+  Estimated gas consumption
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if simulation failed
+</ResponseField>
+
+<ResponseField name="logs" type="any">
+  Debug logs (when includeDebug is true)
+</ResponseField>
+
+<ResponseField name="assetChanges" type="array">
+  Array of asset changes resulting from the transaction
+
+  <Expandable title="Asset change properties">
+    <ResponseField name="direction" type="'SEND' | 'RECEIVE'">
+      Whether assets are being sent or received
+    </ResponseField>
+
+    <ResponseField name="symbol" type="string">
+      Token symbol
+    </ResponseField>
+
+    <ResponseField name="type" type="string">
+      Asset type (e.g., "native", "erc20")
+    </ResponseField>
+
+    <ResponseField name="amount" type="string">
+      Amount of the asset (negative for SEND, positive for RECEIVE)
+    </ResponseField>
+
+    <ResponseField name="decimals" type="number">
+      Token decimals
+    </ResponseField>
+
+    <ResponseField name="address" type="string">
+      Token contract address
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="risks" type="array">
+  Array of detected risks
+
+  <Expandable title="Risk properties">
+    <ResponseField name="addressType" type="string">
+      Type of risky address detected
+    </ResponseField>
+
+    <ResponseField name="address" type="string">
+      The risky address
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+### Simulate Swap Transaction
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get swap data
+const swapData = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+});
+
+const tx = swapData.data[0].tx;
+
+// Simulate the transaction
+const simulation = await client.dex.simulateTransaction({
+  fromAddress: tx.from,
+  toAddress: tx.to,
+  chainIndex: '1',
+  txAmount: tx.value,
+  extJson: {
+    inputData: tx.data
+  },
+  gasPrice: tx.gasPrice,
+  includeDebug: true
+});
+
+if (simulation.success) {
+  console.log('Simulation successful!');
+  console.log('Gas used:', simulation.gasUsed);
+  console.log('Asset changes:', simulation.assetChanges);
+} else {
+  console.error('Simulation failed:', simulation.error);
+}
+```
+
+### Check Asset Changes
+
+```typescript
+const simulation = await client.dex.simulateTransaction(params);
+
+if (simulation.success) {
+  simulation.assetChanges.forEach(change => {
+    const humanAmount = parseFloat(change.amount) / Math.pow(10, change.decimals);
+    console.log(
+      `${change.direction}: ${humanAmount.toFixed(6)} ${change.symbol}`
+    );
+  });
+}
+```
+
+## Response Example
+
+### Successful Simulation
+
+```json
+{
+  "success": true,
+  "gasUsed": "185432",
+  "assetChanges": [
+    {
+      "direction": "SEND",
+      "symbol": "ETH",
+      "type": "native",
+      "amount": "-1000000000000000000",
+      "decimals": 18,
+      "address": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+    },
+    {
+      "direction": "RECEIVE",
+      "symbol": "USDC",
+      "type": "erc20",
+      "amount": "2487500000",
+      "decimals": 6,
+      "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    }
+  ],
+  "risks": []
+}
+```
+
+### Failed Simulation
+
+```json
+{
+  "success": false,
+  "error": "execution reverted: insufficient balance",
+  "assetChanges": [],
+  "risks": []
+}
+```
+
+### With Risks Detected
+
+```json
+{
+  "success": true,
+  "gasUsed": "200000",
+  "assetChanges": [...],
+  "risks": [
+    {
+      "addressType": "honeypot",
+      "address": "0x..."
+    }
+  ]
+}
+```
+
+## Use Cases
+
+### Pre-flight Validation
+
+```typescript
+async function validateSwapBeforeExecution(swapParams: SwapParams) {
+  // Get swap data
+  const swapData = await client.dex.getSwapData(swapParams);
+  const tx = swapData.data[0].tx;
+
+  // Simulate the transaction
+  const simulation = await client.dex.simulateTransaction({
+    fromAddress: tx.from,
+    toAddress: tx.to,
+    chainIndex: swapParams.chainIndex!,
+    txAmount: tx.value,
+    extJson: { inputData: tx.data },
+    gasPrice: tx.gasPrice,
+    includeDebug: false
+  });
+
+  if (!simulation.success) {
+    throw new Error(`Transaction would fail: ${simulation.error}`);
+  }
+
+  if (simulation.risks.length > 0) {
+    console.warn('Risks detected:', simulation.risks);
+  }
+
+  return simulation;
+}
+```
+
+### Display Preview to User
+
+```typescript
+const simulation = await client.dex.simulateTransaction(params);
+
+if (simulation.success) {
+  console.log('Transaction Preview:');
+  console.log('━'.repeat(50));
+
+  simulation.assetChanges.forEach(change => {
+    const amount = parseFloat(change.amount) / Math.pow(10, change.decimals);
+    const prefix = change.direction === 'SEND' ? '-' : '+';
+    console.log(`${prefix} ${Math.abs(amount).toFixed(6)} ${change.symbol}`);
+  });
+
+  console.log('━'.repeat(50));
+  console.log(`Estimated Gas: ${simulation.gasUsed}`);
+
+  if (simulation.risks.length > 0) {
+    console.log('\n⚠️  Warnings:');
+    simulation.risks.forEach(risk => {
+      console.log(`  - ${risk.addressType}: ${risk.address}`);
+    });
+  }
+}
+```
+
+### Gas Estimation
+
+```typescript
+const simulation = await client.dex.simulateTransaction(params);
+
+if (simulation.success && simulation.gasUsed) {
+  const gasLimit = Math.ceil(parseFloat(simulation.gasUsed) * 1.2); // Add 20% buffer
+  console.log('Recommended gas limit:', gasLimit);
+}
+```
+
+### Slippage Verification
+
+```typescript
+const simulation = await client.dex.simulateTransaction(params);
+
+if (simulation.success) {
+  const received = simulation.assetChanges.find(c => c.direction === 'RECEIVE');
+  const expectedAmount = swapData.data[0].routerResult.toTokenAmount;
+
+  if (received && BigInt(received.amount) < BigInt(expectedAmount)) {
+    const slippage = (
+      (parseFloat(expectedAmount) - parseFloat(received.amount)) /
+      parseFloat(expectedAmount)
+    ) * 100;
+    console.log(`Actual slippage: ${slippage.toFixed(2)}%`);
+  }
+}
+```
+
+### Risk Detection
+
+```typescript
+async function checkTransactionRisks(params: SwapSimulationParams) {
+  const simulation = await client.dex.simulateTransaction(params);
+
+  const riskLevels = {
+    honeypot: 'HIGH',
+    scam: 'CRITICAL',
+    suspicious: 'MEDIUM'
+  };
+
+  if (simulation.risks.length > 0) {
+    const highestRisk = simulation.risks.reduce((max, risk) => {
+      const currentLevel = riskLevels[risk.addressType] || 'LOW';
+      return currentLevel > max ? currentLevel : max;
+    }, 'LOW');
+
+    return {
+      hasRisks: true,
+      riskLevel: highestRisk,
+      risks: simulation.risks
+    };
+  }
+
+  return { hasRisks: false };
+}
+```
+
+## Error Handling
+
+```typescript
+try {
+  const simulation = await client.dex.simulateTransaction(params);
+  
+  if (!simulation.success) {
+    // Handle simulation failure
+    if (simulation.error?.includes('insufficient')) {
+      console.error('Insufficient balance');
+    } else if (simulation.error?.includes('revert')) {
+      console.error('Transaction would revert:', simulation.error);
+    } else {
+      console.error('Simulation failed:', simulation.error);
+    }
+  }
+} catch (error) {
+  console.error('Simulation request failed:', error.message);
+}
+```
+
+## Notes
+
+- Simulations are performed against the current blockchain state
+- Results may differ if blockchain state changes before actual execution
+- Gas estimates include a margin for safety
+- Risk detection helps identify potentially malicious contracts
+- Debug logs are only included when `includeDebug` is true
+- EVM chains only (not supported for Solana)

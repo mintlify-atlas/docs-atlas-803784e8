@@ -1,0 +1,334 @@
+---
+title: Transaction simulation
+description: Validate transactions before execution to detect failures and risks
+---
+
+Transaction simulation lets you test transactions before executing them on-chain. This helps you detect potential failures, estimate gas usage, and identify security risks without spending gas.
+
+## Overview
+
+The `simulateTransaction` method runs your transaction through a simulated blockchain environment and returns detailed information about what would happen if you executed it.
+
+<Note>
+Transaction simulation requires API registration and whitelist approval. Contact [dexapi@okx.com](mailto:dexapi@okx.com) to request access.
+</Note>
+
+## Benefits
+
+<CardGroup cols={2}>
+  <Card title="Prevent failures" icon="shield-check">
+    Detect transaction failures before spending gas on-chain
+  </Card>
+  <Card title="Estimate gas" icon="gas-pump">
+    Get accurate gas usage estimates for your transactions
+  </Card>
+  <Card title="Identify risks" icon="triangle-exclamation">
+    Detect interactions with risky or malicious contracts
+  </Card>
+  <Card title="Preview changes" icon="eye">
+    See exactly what asset changes will occur
+  </Card>
+</CardGroup>
+
+## How it works
+
+<Steps>
+  <Step title="Get swap data">
+    First, get the transaction data for your swap
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+      amount: String(10 ** 18 * 0.001),
+      slippagePercent: '0.005',
+      userWalletAddress: walletAddress
+    });
+    ```
+  </Step>
+  
+  <Step title="Prepare simulation parameters">
+    Extract transaction details for simulation
+    
+    ```typescript
+    const params = {
+      chainIndex: '8453',
+      fromAddress: swapData.data[0].tx.from,
+      toAddress: swapData.data[0].tx.to,
+      txAmount: swapData.data[0].tx.value,
+      extJson: {
+        inputData: swapData.data[0].tx.data
+      },
+      gasPrice: swapData.data[0].tx.gasPrice,
+      includeDebug: true
+    };
+    ```
+  </Step>
+  
+  <Step title="Run simulation">
+    Execute the simulation
+    
+    ```typescript
+    const result = await client.dex.simulateTransaction(params);
+    ```
+  </Step>
+</Steps>
+
+## Complete example
+
+Here's a complete example from the SDK source code:
+
+```typescript
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+import { ethers } from 'ethers';
+import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const wallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: { wallet }
+});
+
+const walletAddress = wallet.address;
+
+// Get swap data
+const swapData = await client.dex.getSwapData({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+  amount: String(10 ** 18 * 0.001),
+  slippagePercent: '0.005',
+  userWalletAddress: walletAddress
+});
+
+// Simulate the transaction
+const result = await client.dex.simulateTransaction({
+  chainIndex: '8453',
+  fromAddress: swapData.data[0].tx.from,
+  toAddress: swapData.data[0].tx.to,
+  txAmount: swapData.data[0].tx.value,
+  extJson: {
+    inputData: swapData.data[0].tx.data
+  },
+  gasPrice: swapData.data[0].tx.gasPrice,
+  includeDebug: true
+});
+
+// Check results
+console.log('Success:', result.success);
+console.log('Gas Used:', result.gasUsed);
+
+if (!result.success) {
+  console.log('Transaction would fail:', result.error);
+} else {
+  console.log('Transaction would succeed!');
+}
+
+// Review asset changes
+result.assetChanges.forEach(asset => {
+  console.log(`${asset.direction}: ${asset.symbol} - ${asset.amount}`);
+});
+
+// Check for risks
+if (result.risks.length > 0) {
+  console.log('Risks detected:');
+  result.risks.forEach(risk => {
+    console.log(`- ${risk.addressType}: ${risk.address}`);
+  });
+}
+```
+
+## Simulation result
+
+The simulation returns detailed information about the transaction:
+
+### Success status
+
+```typescript
+interface SimulationResult {
+  success: boolean;        // Whether the transaction would succeed
+  gasUsed?: string;       // Gas units that would be consumed
+  error?: string;         // Error message if transaction would fail
+  logs?: any;             // Debug trace (if includeDebug: true)
+  assetChanges: Array<{   // Token transfers that would occur
+    direction: 'SEND' | 'RECEIVE';
+    symbol: string;
+    type: string;
+    amount: string;
+    decimals: number;
+    address: string;
+  }>;
+  risks: Array<{          // Detected security risks
+    addressType: string;
+    address: string;
+  }>;
+}
+```
+
+### Asset changes
+
+The `assetChanges` array shows exactly what tokens would be transferred:
+
+```typescript
+result.assetChanges.forEach(asset => {
+  if (asset.direction === 'SEND') {
+    console.log(`Sending ${asset.amount} ${asset.symbol}`);
+  } else {
+    console.log(`Receiving ${asset.amount} ${asset.symbol}`);
+  }
+});
+```
+
+### Risk detection
+
+The simulation identifies interactions with potentially risky contracts:
+
+```typescript
+if (result.risks.length > 0) {
+  console.warn('⚠️ Risks detected:');
+  result.risks.forEach(risk => {
+    console.warn(`- ${risk.addressType}: ${risk.address}`);
+  });
+}
+```
+
+## Common use cases
+
+### Validate before execution
+
+```typescript
+const simulation = await client.dex.simulateTransaction(params);
+
+if (simulation.success) {
+  // Safe to execute
+  const tx = await wallet.sendTransaction(transaction);
+  await tx.wait();
+} else {
+  console.error('Transaction would fail:', simulation.error);
+}
+```
+
+### Check gas usage
+
+```typescript
+const simulation = await client.dex.simulateTransaction(params);
+
+console.log(`Estimated gas: ${simulation.gasUsed}`);
+
+const gasPrice = await provider.getGasPrice();
+const estimatedCost = BigInt(simulation.gasUsed!) * gasPrice;
+
+console.log(`Estimated cost: ${ethers.formatEther(estimatedCost)} ETH`);
+```
+
+### Debug failed transactions
+
+```typescript
+const simulation = await client.dex.simulateTransaction({
+  ...params,
+  includeDebug: true  // Enable debug trace
+});
+
+if (!simulation.success) {
+  console.log('Failure reason:', simulation.error);
+  console.log('Debug trace:', JSON.stringify(simulation.logs, null, 2));
+}
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Always simulate high-value transactions">
+    For transactions involving significant amounts, always simulate first to detect potential issues before spending gas.
+    
+    ```typescript
+    const valueInUSD = parseFloat(quoteResult.data[0].toTokenAmount) * tokenPrice;
+    
+    if (valueInUSD > 1000) {
+      // Simulate before executing
+      const simulation = await client.dex.simulateTransaction(params);
+      if (!simulation.success) {
+        throw new Error(`Simulation failed: ${simulation.error}`);
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Review asset changes">
+    Always review the `assetChanges` array to ensure you're sending and receiving the expected amounts.
+    
+    ```typescript
+    const sending = result.assetChanges.filter(a => a.direction === 'SEND');
+    const receiving = result.assetChanges.filter(a => a.direction === 'RECEIVE');
+    
+    console.log('You will send:', sending);
+    console.log('You will receive:', receiving);
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle risk warnings">
+    If risks are detected, review them carefully before proceeding.
+    
+    ```typescript
+    if (result.risks.length > 0) {
+      console.warn('Risks detected in simulation:');
+      result.risks.forEach(risk => {
+        console.warn(`- ${risk.addressType}: ${risk.address}`);
+      });
+      
+      // Require user confirmation for risky transactions
+      const confirmed = await getUserConfirmation();
+      if (!confirmed) {
+        throw new Error('Transaction cancelled by user');
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error handling
+
+```typescript
+try {
+  const result = await client.dex.simulateTransaction(params);
+  
+  if (!result.success) {
+    console.error('Simulation detected failure:', result.error);
+    // Don't execute the transaction
+    return;
+  }
+  
+  // Proceed with execution
+  await executeTransaction();
+  
+} catch (error: any) {
+  if (error.message.includes('Simulation failed')) {
+    console.error('Simulation API error:', error.message);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Transaction broadcasting" icon="tower-broadcast" href="/guides/transaction-broadcasting">
+    Learn about broadcasting with MEV protection
+  </Card>
+  <Card title="Gas estimation" icon="gas-pump" href="/guides/gas-estimation">
+    Estimate gas limits for your transactions
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference/dex/simulate-transaction">
+    View the complete API reference
+  </Card>
+  <Card title="Error handling" icon="shield-check" href="/core-concepts/error-handling">
+    Learn about error handling patterns
+  </Card>
+</CardGroup>

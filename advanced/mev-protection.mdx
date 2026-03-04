@@ -1,0 +1,290 @@
+---
+title: MEV protection
+description: Protect your transactions from MEV attacks with OKX's private mempool
+---
+
+Maximum Extractable Value (MEV) protection shields your transactions from front-running, sandwich attacks, and other forms of MEV extraction by routing them through OKX's private transaction infrastructure.
+
+## What is MEV?
+
+MEV (Maximum Extractable Value) refers to the profit that can be extracted by reordering, inserting, or censoring transactions within a block. Common MEV attacks include:
+
+<CardGroup cols={2}>
+  <Card title="Front-running" icon="forward">
+    An attacker sees your pending transaction and submits a similar one with higher gas to execute first
+  </Card>
+  <Card title="Sandwich attacks" icon="layer-group">
+    An attacker places transactions before and after yours to profit from the price impact
+  </Card>
+  <Card title="Back-running" icon="backward">
+    An attacker executes a transaction immediately after yours to capitalize on price changes
+  </Card>
+  <Card title="Transaction reordering" icon="shuffle">
+    Miners or validators reorder transactions to maximize their profit
+  </Card>
+</CardGroup>
+
+## How MEV protection works
+
+When you enable MEV protection, your transaction is:
+
+1. **Sent to OKX's private mempool** instead of the public mempool
+2. **Hidden from public searchers** and MEV bots
+3. **Included directly in blocks** by trusted validators
+4. **Protected from front-running** and sandwich attacks
+
+<Note>
+MEV protection requires API registration and whitelist approval. Contact [dexapi@okx.com](mailto:dexapi@okx.com) to request access.
+</Note>
+
+## Enabling MEV protection
+
+To enable MEV protection, set `enableMevProtection: true` when broadcasting your transaction:
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTransaction,
+  chainIndex: '8453',
+  address: walletAddress,
+  enableMevProtection: true  // Enable MEV protection
+});
+```
+
+## Complete example
+
+Here's a complete swap workflow with MEV protection from the SDK source code:
+
+```typescript
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+import { ethers } from 'ethers';
+import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const wallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: { wallet }
+});
+
+const walletAddress = wallet.address;
+
+// Step 1: Get swap data
+const swapData = await client.dex.getSwapData({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '3000000000000000',
+  slippagePercent: '0.05',
+  userWalletAddress: walletAddress
+});
+
+const txData = swapData.data[0].tx;
+
+// Step 2: Sign the transaction
+const nonce = await provider.getTransactionCount(walletAddress);
+
+const transaction = {
+  to: txData.to,
+  value: txData.value,
+  data: txData.data,
+  gasLimit: txData.gas,
+  gasPrice: txData.gasPrice,
+  nonce: nonce,
+  chainId: 8453
+};
+
+const signedTx = await wallet.signTransaction(transaction);
+
+// Step 3: Broadcast with MEV protection
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: signedTx,
+  chainIndex: '8453',
+  address: walletAddress,
+  enableMevProtection: true  // Protected from MEV attacks
+});
+
+console.log('Order ID:', broadcastResult.data[0].orderId);
+console.log('Transaction Hash:', broadcastResult.data[0].txHash);
+```
+
+## When to use MEV protection
+
+<Tabs>
+  <Tab title="Recommended">
+    Use MEV protection for:
+    
+    - **Large trades** that create significant price impact
+    - **Time-sensitive swaps** where front-running would be costly
+    - **High-value transactions** (> $10,000 USD)
+    - **Volatile markets** where sandwich attacks are common
+    - **Production applications** serving end users
+  </Tab>
+  
+  <Tab title="Optional">
+    MEV protection may be optional for:
+    
+    - **Small trades** with minimal price impact
+    - **Testing environments** where speed matters more
+    - **Stablecoin swaps** with low volatility
+    - **Low-liquidity pairs** where MEV is less profitable
+  </Tab>
+</Tabs>
+
+## Solana: Jito MEV protection
+
+For Solana transactions, you can use Jito's MEV protection by providing a Jito-signed transaction:
+
+```typescript
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx: regularSignedTx,
+  chainIndex: '501',  // Solana
+  address: walletAddress,
+  jitoSignedTx: jitoSignedTransaction  // Jito bundle
+});
+```
+
+<Info>
+Jito bundles provide MEV protection on Solana by guaranteeing transaction ordering within a bundle.
+</Info>
+
+## Monitoring protected transactions
+
+Track your MEV-protected transactions using the order ID:
+
+```typescript
+const orders = await client.dex.getTransactionOrders({
+  orderId: broadcastResult.data[0].orderId,
+  chainIndex: '8453',
+  address: walletAddress
+});
+
+console.log('Status:', orders.data[0].orders[0].txStatus);
+console.log('Transaction Hash:', orders.data[0].orders[0].txHash);
+```
+
+See the [Order tracking guide](/guides/order-tracking) for more details.
+
+## Cost considerations
+
+<Warning>
+MEV protection may involve additional fees depending on your API tier. Check with OKX for current pricing.
+</Warning>
+
+While MEV protection may have a small cost, it often saves money by preventing:
+
+- Front-running losses
+- Sandwich attack slippage
+- Failed transactions due to MEV
+- Unfavorable price execution
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Enable for production">
+    Always use MEV protection in production applications to protect your users from MEV attacks.
+    
+    ```typescript
+    const isProduction = process.env.NODE_ENV === 'production';
+    const enableMevProtection = isProduction;  // Always true in production
+    
+    await client.dex.broadcastTransaction({
+      signedTx,
+      chainIndex: '8453',
+      address: walletAddress,
+      enableMevProtection
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Combine with slippage protection">
+    Use MEV protection together with appropriate slippage settings for maximum protection.
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005',  // 0.5% slippage
+      userWalletAddress
+    });
+    
+    const signedTx = await wallet.signTransaction(transaction);
+    
+    await client.dex.broadcastTransaction({
+      signedTx,
+      chainIndex: '8453',
+      address: walletAddress,
+      enableMevProtection: true  // MEV + slippage protection
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Monitor transaction status">
+    Track your protected transactions to ensure they're confirmed.
+    
+    ```typescript
+    const broadcastResult = await client.dex.broadcastTransaction({
+      signedTx,
+      chainIndex: '8453',
+      address: walletAddress,
+      enableMevProtection: true
+    });
+    
+    const orderId = broadcastResult.data[0].orderId;
+    
+    // Poll for status
+    const pollStatus = async () => {
+      const orders = await client.dex.getTransactionOrders({
+        orderId,
+        chainIndex: '8453',
+        address: walletAddress
+      });
+      
+      const status = orders.data[0].orders[0].txStatus;
+      
+      if (status === '2') {
+        console.log('✅ Transaction confirmed!');
+      } else if (status === '3') {
+        console.error('❌ Transaction failed');
+      } else {
+        setTimeout(pollStatus, 3000);  // Poll every 3 seconds
+      }
+    };
+    
+    pollStatus();
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Comparison: With vs without MEV protection
+
+| Aspect | Without Protection | With MEV Protection |
+|--------|-------------------|--------------------|
+| **Visibility** | Public mempool | Private mempool |
+| **Front-running risk** | High | None |
+| **Sandwich attacks** | Possible | Prevented |
+| **Price execution** | May be unfavorable | Guaranteed |
+| **Confirmation time** | Variable | Typically faster |
+| **Cost** | Gas only | Gas + potential MEV fee |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Transaction broadcasting" icon="tower-broadcast" href="/guides/transaction-broadcasting">
+    Learn about the complete broadcasting workflow
+  </Card>
+  <Card title="Order tracking" icon="chart-line" href="/guides/order-tracking">
+    Monitor your transaction status
+  </Card>
+  <Card title="Slippage protection" icon="shield" href="/advanced/slippage-protection">
+    Configure slippage tolerance
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference/dex/broadcast-transaction">
+    View the complete API reference
+  </Card>
+</CardGroup>

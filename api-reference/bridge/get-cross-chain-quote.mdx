@@ -1,0 +1,152 @@
+---
+title: "Get Cross-Chain Quote"
+description: "Get a quote for a cross-chain token swap"
+---
+
+## Method Signature
+
+```typescript
+async getCrossChainQuote(params: CrossChainQuoteParams): Promise<APIResponse<any>>
+```
+
+Retrieves a quote for swapping tokens across different blockchain networks. This method validates slippage parameters and returns routing information, estimated gas fees, and expected amounts.
+
+## Parameters
+
+<ParamField path="fromChainIndex" type="string" required>
+  Source chain index identifier (e.g., "1" for Ethereum, "501" for Solana)
+</ParamField>
+
+<ParamField path="toChainIndex" type="string" required>
+  Destination chain index identifier
+</ParamField>
+
+<ParamField path="fromChainId" type="string" required>
+  Source chain ID (e.g., "1" for Ethereum mainnet)
+</ParamField>
+
+<ParamField path="toChainId" type="string" required>
+  Destination chain ID
+</ParamField>
+
+<ParamField path="fromTokenAddress" type="string" required>
+  Contract address of the token to swap from
+</ParamField>
+
+<ParamField path="toTokenAddress" type="string" required>
+  Contract address of the token to swap to
+</ParamField>
+
+<ParamField path="amount" type="string" required>
+  Amount to swap in the smallest unit (e.g., wei for ETH)
+</ParamField>
+
+<ParamField path="slippagePercent" type="string" required>
+  Maximum acceptable slippage as a decimal (e.g., "0.005" for 0.5%). Must be between 0.002 (0.2%) and 0.5 (50%)
+</ParamField>
+
+<ParamField path="sort" type="string">
+  Sort order for bridge options (e.g., "cost", "time")
+</ParamField>
+
+<ParamField path="dexIds" type="string">
+  Comma-separated list of DEX IDs to include in routing
+</ParamField>
+
+<ParamField path="allowBridge" type="string">
+  Comma-separated list of bridge IDs to allow
+</ParamField>
+
+<ParamField path="denyBridge" type="string">
+  Comma-separated list of bridge IDs to exclude
+</ParamField>
+
+<ParamField path="priceImpactProtectionPercentage" type="string">
+  Maximum acceptable price impact percentage
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of quote results
+  
+  <ResponseField name="routerResult" type="object">
+    Routing information for the swap
+    
+    <ResponseField name="fromTokenAmount" type="string">
+      Amount of source tokens to be swapped
+    </ResponseField>
+    
+    <ResponseField name="toTokenAmount" type="string">
+      Expected amount of destination tokens to receive
+    </ResponseField>
+    
+    <ResponseField name="estimateGasFee" type="string">
+      Estimated gas fee for the transaction
+    </ResponseField>
+    
+    <ResponseField name="priceImpactPercent" type="string">
+      Expected price impact as a percentage
+    </ResponseField>
+    
+    <ResponseField name="tradeFee" type="string">
+      Trading fee amount
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+## Code Example
+
+```typescript
+import { OKXDexSDK } from '@okxweb3/dex-sdk';
+
+const sdk = new OKXDexSDK({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get a quote for bridging USDC from Ethereum to Arbitrum
+const quote = await sdk.bridge.getCrossChainQuote({
+  fromChainIndex: '1',        // Ethereum
+  toChainIndex: '42161',      // Arbitrum
+  fromChainId: '1',
+  toChainId: '42161',
+  fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC on Ethereum
+  toTokenAddress: '0xFF970a61A04b1cA14834A43f5dE4533eBDDB5CC8',   // USDC on Arbitrum
+  amount: '1000000000',       // 1000 USDC (6 decimals)
+  slippagePercent: '0.005'    // 0.5% slippage
+});
+
+console.log('Expected output:', quote.data[0].routerResult.toTokenAmount);
+console.log('Estimated gas:', quote.data[0].routerResult.estimateGasFee);
+```
+
+## Error Handling
+
+The method validates slippage parameters and throws an error if slippage is outside the acceptable range:
+
+```typescript
+try {
+  const quote = await sdk.bridge.getCrossChainQuote(params);
+} catch (error) {
+  if (error.message.includes('Slippage must be between')) {
+    console.error('Invalid slippage value');
+  }
+}
+```
+
+## Validation Rules
+
+- Slippage must be between 0.002 (0.2%) and 0.5 (50%)
+- All required chain and token parameters must be provided
+- Amount must be specified in the token's smallest unit

@@ -1,0 +1,319 @@
+---
+title: Custom routes
+description: Control which DEXs and liquidity sources are used for your swaps
+---
+
+The OKX DEX SDK aggregates liquidity from multiple decentralized exchanges. You can customize which DEXs are used, prefer specific routes, or exclude certain liquidity sources to optimize for your specific needs.
+
+## Default routing
+
+By default, the SDK automatically finds the best route across all available DEX liquidity sources:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005'
+});
+// Uses best route across all available DEXs
+```
+
+## View available DEXs
+
+Check which DEXs are available for a specific chain:
+
+```typescript
+const liquidity = await client.dex.getLiquidity('8453');
+
+console.log('Available DEXs:');
+liquidity.data.forEach(dex => {
+  console.log(`- ${dex.name} (ID: ${dex.id})`);
+});
+```
+
+**Example output for Base (Chain ID 8453):**
+
+```
+Available DEXs:
+- Uniswap V3 (ID: uniswapv3)
+- Aerodrome (ID: aerodrome)
+- BaseSwap (ID: baseswap)
+- Balancer V2 (ID: balancerv2)
+- Curve (ID: curve)
+- SushiSwap (ID: sushiswap)
+```
+
+## Specify DEXs
+
+Use the `dexIds` parameter to limit routing to specific DEXs:
+
+### Single DEX
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  dexIds: 'uniswapv3'  // Only use Uniswap V3
+});
+```
+
+### Multiple DEXs
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  dexIds: 'uniswapv3,aerodrome,curve'  // Prefer these DEXs
+});
+```
+
+## Direct routes
+
+For simple token pairs, you can request a direct route instead of using intermediate hops:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  directRoute: true  // Force direct swap without routing
+});
+```
+
+<Warning>
+Direct routes may result in worse prices for pairs with limited direct liquidity. Use this only when you know a direct pool exists.
+</Warning>
+
+## Inspect route details
+
+After getting a quote, inspect which DEXs and routes were used:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005'
+});
+
+const routerResult = quote.data[0];
+
+console.log('Route details:');
+console.log('Swap mode:', routerResult.swapMode);
+console.log('\nDEX routes:');
+
+routerResult.dexRouterList.forEach(route => {
+  console.log(`- ${route.dexProtocol.dexName} (${route.dexProtocol.percent}%)`);
+  console.log(`  ${route.fromToken.tokenSymbol} → ${route.toToken.tokenSymbol}`);
+});
+```
+
+**Example output:**
+
+```
+Route details:
+Swap mode: aggregator
+
+DEX routes:
+- Uniswap V3 (60%)
+  ETH → USDC
+- Aerodrome (40%)
+  ETH → USDC
+```
+
+## Use cases
+
+<Tabs>
+  <Tab title="Lowest fees">
+    Prefer DEXs with the lowest trading fees:
+    
+    ```typescript
+    const quote = await client.dex.getQuote({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005',
+      dexIds: 'curve,balancerv2'  // Low-fee DEXs
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Highest liquidity">
+    Route through the most liquid DEXs:
+    
+    ```typescript
+    const quote = await client.dex.getQuote({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005',
+      dexIds: 'uniswapv3,aerodrome'  // Highest liquidity on Base
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Exclude DEXs">
+    To exclude specific DEXs, get all available DEXs and filter them:
+    
+    ```typescript
+    const allDexs = await client.dex.getLiquidity('8453');
+    
+    // Exclude certain DEXs
+    const excludeDexs = ['baseswap', 'sushiswap'];
+    const allowedDexs = allDexs.data
+      .filter(dex => !excludeDexs.includes(dex.id))
+      .map(dex => dex.id)
+      .join(',');
+    
+    const quote = await client.dex.getQuote({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005',
+      dexIds: allowedDexs
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Stablecoin swaps">
+    For stablecoin swaps, prefer Curve for minimal slippage:
+    
+    ```typescript
+    const quote = await client.dex.getQuote({
+      chainIndex: '8453',
+      fromTokenAddress: USDC_ADDRESS,
+      toTokenAddress: USDT_ADDRESS,
+      amount,
+      slippagePercent: '0.001',  // Lower slippage for stables
+      dexIds: 'curve',  // Curve optimized for stableswaps
+      directRoute: true
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Chain-specific DEXs
+
+Different chains have different DEX ecosystems. Here are common DEXs by chain:
+
+<AccordionGroup>
+  <Accordion title="Ethereum (Chain ID: 1)">
+    - Uniswap V2/V3
+    - SushiSwap
+    - Curve
+    - Balancer V2
+    - 1inch
+  </Accordion>
+  
+  <Accordion title="Base (Chain ID: 8453)">
+    - Uniswap V3
+    - Aerodrome
+    - BaseSwap
+    - Curve
+    - Balancer V2
+  </Accordion>
+  
+  <Accordion title="Polygon (Chain ID: 137)">
+    - QuickSwap
+    - SushiSwap
+    - Uniswap V3
+    - Curve
+    - Balancer V2
+  </Accordion>
+  
+  <Accordion title="Arbitrum (Chain ID: 42161)">
+    - Uniswap V3
+    - SushiSwap
+    - Curve
+    - Balancer V2
+    - Camelot
+  </Accordion>
+</AccordionGroup>
+
+## Compare routes
+
+Compare prices across different routing strategies:
+
+```typescript
+// Strategy 1: Default (all DEXs)
+const defaultQuote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: '0.005'
+});
+
+// Strategy 2: Uniswap V3 only
+const uniswapQuote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: '0.005',
+  dexIds: 'uniswapv3'
+});
+
+// Strategy 3: Direct route
+const directQuote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: '0.005',
+  directRoute: true
+});
+
+// Compare
+console.log('Default:', defaultQuote.data[0].toTokenAmount);
+console.log('Uniswap V3:', uniswapQuote.data[0].toTokenAmount);
+console.log('Direct:', directQuote.data[0].toTokenAmount);
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Test first" icon="flask">
+    Test custom routes with small amounts before using in production
+  </Card>
+  <Card title="Monitor prices" icon="chart-line">
+    Compare custom routes against default routing to ensure you're getting good prices
+  </Card>
+  <Card title="Stay updated" icon="rotate">
+    Periodically check for new DEXs using `getLiquidity()`
+  </Card>
+  <Card title="Consider fees" icon="dollar-sign">
+    Different DEXs have different fee structures - factor this into your routing
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Get liquidity sources" icon="droplet" href="/api-reference/dex/get-liquidity">
+    View available DEXs for each chain
+  </Card>
+  <Card title="Slippage protection" icon="shield" href="/advanced/slippage-protection">
+    Configure slippage tolerance
+  </Card>
+  <Card title="Quote API" icon="quote-left" href="/api-reference/dex/get-quote">
+    Get price quotes with custom routes
+  </Card>
+  <Card title="EVM swaps guide" icon="exchange" href="/guides/evm-swaps">
+    Complete swap examples
+  </Card>
+</CardGroup>

@@ -1,0 +1,189 @@
+---
+title: "Get Supported Bridges"
+description: "Get all bridge protocols supported for a specific chain"
+---
+
+## Method Signature
+
+```typescript
+async getSupportedBridges(chainIndex: string): Promise<APIResponse<LiquidityData>>
+```
+
+Retrieves the list of all bridge protocols available for cross-chain transfers on a specific blockchain network. This information can be used to filter bridge options when getting quotes or building swaps.
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  The chain index identifier (e.g., "1" for Ethereum, "501" for Solana, "42161" for Arbitrum)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of supported bridge protocols
+  
+  <ResponseField name="id" type="string">
+    Unique identifier for the bridge protocol
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Display name of the bridge protocol (e.g., "Stargate", "Across", "Synapse")
+  </ResponseField>
+  
+  <ResponseField name="logo" type="string">
+    URL to the bridge protocol's logo image
+  </ResponseField>
+</ResponseField>
+
+## Code Example
+
+```typescript
+import { OKXDexSDK } from '@okxweb3/dex-sdk';
+
+const sdk = new OKXDexSDK({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get all supported bridges on Ethereum
+const ethereumBridges = await sdk.bridge.getSupportedBridges('1');
+
+console.log(`Found ${ethereumBridges.data.length} supported bridges`);
+
+etheremBridges.data.forEach(bridge => {
+  console.log(`${bridge.name} (ID: ${bridge.id})`);
+  console.log(`  Logo: ${bridge.logo}`);
+});
+```
+
+## Use Cases
+
+### Filter Quotes by Preferred Bridge
+
+```typescript
+// Get supported bridges
+const bridges = await sdk.bridge.getSupportedBridges('1');
+
+// Find Stargate bridge ID
+const stargate = bridges.data.find(b => b.name === 'Stargate');
+
+if (stargate) {
+  // Get quote using only Stargate
+  const quote = await sdk.bridge.getCrossChainQuote({
+    fromChainIndex: '1',
+    toChainIndex: '42161',
+    fromChainId: '1',
+    toChainId: '42161',
+    fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    toTokenAddress: '0xFF970a61A04b1cA14834A43f5dE4533eBDDB5CC8',
+    amount: '1000000000',
+    slippagePercent: '0.005',
+    allowBridge: stargate.id  // Only use Stargate
+  });
+}
+```
+
+### Display Bridge Options in UI
+
+```typescript
+// Fetch supported bridges for the selected chain
+const bridges = await sdk.bridge.getSupportedBridges('1');
+
+// Create UI options with logos
+const bridgeOptions = bridges.data.map(bridge => ({
+  value: bridge.id,
+  label: bridge.name,
+  icon: bridge.logo
+}));
+
+// Let user select which bridges to allow/deny
+const selectedBridges = ['stargate', 'across']; // User selection
+
+const quote = await sdk.bridge.getCrossChainQuote({
+  // ... other params
+  allowBridge: selectedBridges.join(',')  // "stargate,across"
+});
+```
+
+### Exclude Specific Bridges
+
+```typescript
+// Get all bridges
+const bridges = await sdk.bridge.getSupportedBridges('1');
+
+// Find bridges to exclude
+const slowBridges = bridges.data
+  .filter(b => ['synapse', 'celer'].includes(b.id))
+  .map(b => b.id)
+  .join(',');
+
+// Get quote excluding slow bridges
+const quote = await sdk.bridge.getCrossChainQuote({
+  fromChainIndex: '1',
+  toChainIndex: '42161',
+  fromChainId: '1',
+  toChainId: '42161',
+  fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  toTokenAddress: '0xFF970a61A04b1cA14834A43f5dE4533eBDDB5CC8',
+  amount: '1000000000',
+  slippagePercent: '0.005',
+  denyBridge: slowBridges  // Exclude these bridges
+});
+```
+
+### Build Bridge Selection Logic
+
+```typescript
+interface BridgePreference {
+  preferredBridges?: string[];
+  excludedBridges?: string[];
+}
+
+const getQuoteWithBridgePreferences = async (
+  params: CrossChainQuoteParams,
+  preferences: BridgePreference
+) => {
+  const quoteParams = { ...params };
+  
+  if (preferences.preferredBridges?.length) {
+    quoteParams.allowBridge = preferences.preferredBridges.join(',');
+  }
+  
+  if (preferences.excludedBridges?.length) {
+    quoteParams.denyBridge = preferences.excludedBridges.join(',');
+  }
+  
+  return await sdk.bridge.getCrossChainQuote(quoteParams);
+};
+
+// Usage
+const quote = await getQuoteWithBridgePreferences(
+  {
+    fromChainIndex: '1',
+    toChainIndex: '42161',
+    // ... other params
+  },
+  {
+    preferredBridges: ['stargate', 'across'],
+    excludedBridges: ['synapse']
+  }
+);
+```
+
+## Common Bridge Protocols
+
+- Stargate - Fast, low-cost bridge with deep liquidity
+- Across - Optimistic bridge with fast finality
+- Synapse - Multi-chain bridge protocol
+- Celer cBridge - Cross-chain liquidity network
+- Hop Protocol - Rollup-to-rollup bridge

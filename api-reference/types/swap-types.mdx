@@ -1,0 +1,229 @@
+---
+title: "Swap Types"
+description: "Type definitions for swap operations and execution"
+---
+
+## SwapParams
+
+Parameters for executing a token swap.
+
+<ParamField path="chainIndex" type="string">
+  Chain identifier (e.g., "501" for Solana, "1" for Ethereum)
+</ParamField>
+
+<ParamField path="fromTokenAddress" type="string" required>
+  Contract address of the source token
+</ParamField>
+
+<ParamField path="toTokenAddress" type="string" required>
+  Contract address of the destination token
+</ParamField>
+
+<ParamField path="amount" type="string" required>
+  Amount to swap in the smallest unit (e.g., wei for ETH)
+</ParamField>
+
+<ParamField path="userWalletAddress" type="string">
+  User's wallet address executing the swap
+</ParamField>
+
+<ParamField path="slippagePercent" type="string">
+  Slippage tolerance as a percentage (e.g., "0.5" for 0.5%)
+</ParamField>
+
+<ParamField path="autoSlippage" type="boolean">
+  Enable automatic slippage calculation
+</ParamField>
+
+<ParamField path="maxAutoSlippagePercent" type="string">
+  Maximum slippage percentage when using auto-slippage
+</ParamField>
+
+<ParamField path="swapReceiverAddress" type="string">
+  Address to receive the swapped tokens (if different from sender)
+</ParamField>
+
+<ParamField path="fromTokenReferrerWalletAddress" type="string">
+  Referrer wallet address for source token fees
+</ParamField>
+
+<ParamField path="toTokenReferrerWalletAddress" type="string">
+  Referrer wallet address for destination token fees
+</ParamField>
+
+<ParamField path="positiveSlippagePercent" type="string">
+  Positive slippage percentage to capture favorable price movements
+</ParamField>
+
+<ParamField path="dexIds" type="string">
+  Comma-separated list of DEX IDs to route through
+</ParamField>
+
+<ParamField path="directRoute" type="boolean">
+  Use direct routing without intermediate tokens
+</ParamField>
+
+<ParamField path="priceImpactProtectionPercent" type="string">
+  Maximum acceptable price impact percentage
+</ParamField>
+
+<ParamField path="feePercent" type="string">
+  Custom fee percentage for the swap
+</ParamField>
+
+<ParamField path="gasLimit" type="string">
+  Gas limit for the transaction (EVM chains)
+</ParamField>
+
+<ParamField path="gasLevel" type="string">
+  Gas price level: "low", "medium", or "high"
+</ParamField>
+
+<ParamField path="computeUnitPrice" type="string">
+  Compute unit price for Solana transactions
+</ParamField>
+
+<ParamField path="computeUnitLimit" type="string">
+  Compute unit limit for Solana transactions
+</ParamField>
+
+<ParamField path="callDataMemo" type="string">
+  Memo data to include in the transaction
+</ParamField>
+
+```typescript
+interface SwapParams extends BaseParams {
+  slippagePercent?: string;
+  autoSlippage?: boolean;
+  maxAutoSlippagePercent?: string;
+  swapReceiverAddress?: string;
+  fromTokenReferrerWalletAddress?: string;
+  toTokenReferrerWalletAddress?: string;
+  positiveSlippagePercent?: string;
+  gasLimit?: string;
+  gasLevel?: string;
+  computeUnitPrice?: string;
+  computeUnitLimit?: string;
+  callDataMemo?: string;
+}
+```
+
+## SwapResult
+
+Result of a completed swap transaction.
+
+<ParamField path="success" type="boolean" required>
+  Whether the swap was successful
+</ParamField>
+
+<ParamField path="transactionId" type="string" required>
+  Transaction hash or signature
+</ParamField>
+
+<ParamField path="explorerUrl" type="string" required>
+  Block explorer URL for the transaction
+</ParamField>
+
+<ParamField path="details" type="object">
+  Additional swap details
+  <ParamField path="details.fromToken" type="object" required>
+    Source token information
+    <ParamField path="details.fromToken.symbol" type="string" required>
+      Token symbol
+    </ParamField>
+    <ParamField path="details.fromToken.amount" type="string" required>
+      Amount swapped
+    </ParamField>
+    <ParamField path="details.fromToken.decimal" type="string" required>
+      Token decimals
+    </ParamField>
+  </ParamField>
+  <ParamField path="details.toToken" type="object" required>
+    Destination token information
+    <ParamField path="details.toToken.symbol" type="string" required>
+      Token symbol
+    </ParamField>
+    <ParamField path="details.toToken.amount" type="string" required>
+      Amount received
+    </ParamField>
+    <ParamField path="details.toToken.decimal" type="string" required>
+      Token decimals
+    </ParamField>
+  </ParamField>
+  <ParamField path="details.priceImpact" type="string" required>
+    Price impact percentage
+  </ParamField>
+</ParamField>
+
+```typescript
+interface SwapResult {
+  success: boolean;
+  transactionId: string;
+  explorerUrl: string;
+  details?: {
+    fromToken: {
+      symbol: string;
+      amount: string;
+      decimal: string;
+    };
+    toToken: {
+      symbol: string;
+      amount: string;
+      decimal: string;
+    };
+    priceImpact: string;
+  };
+}
+```
+
+## SwapResponseData
+
+API response structure for swap requests.
+
+<ParamField path="data" type="array" required>
+  Array of swap execution data
+  <ParamField path="data[].routerResult" type="RouterResult" required>
+    Routing information for the swap
+  </ParamField>
+  <ParamField path="data[].tx" type="TransactionData" required>
+    Transaction data to execute
+  </ParamField>
+</ParamField>
+
+<ParamField path="code" type="string" required>
+  API response code
+</ParamField>
+
+<ParamField path="msg" type="string" required>
+  API response message
+</ParamField>
+
+```typescript
+interface SwapResponseData {
+  data: {
+    routerResult: RouterResult;
+    tx: TransactionData;
+  }[];
+  code: string;
+  msg: string;
+}
+```
+
+## SwapExecutionData
+
+Swap execution data containing routing and transaction information.
+
+<ParamField path="routerResult" type="RouterResult" required>
+  Routing information for the swap
+</ParamField>
+
+<ParamField path="tx" type="TransactionData">
+  Transaction data to execute (optional for some chains)
+</ParamField>
+
+```typescript
+interface SwapExecutionData {
+  routerResult: RouterResult;
+  tx?: TransactionData;
+}
+```

@@ -1,0 +1,191 @@
+---
+title: "Transaction Types"
+description: "Type definitions for blockchain transactions and broadcasting"
+---
+
+## TransactionData
+
+Transaction data for EVM-compatible chains.
+
+<ParamField path="data" type="string" required>
+  Encoded transaction data
+</ParamField>
+
+<ParamField path="from" type="string" required>
+  Sender address
+</ParamField>
+
+<ParamField path="gas" type="string" required>
+  Gas limit for the transaction
+</ParamField>
+
+<ParamField path="gasPrice" type="string" required>
+  Gas price in wei
+</ParamField>
+
+<ParamField path="maxPriorityFeePerGas" type="string" required>
+  Maximum priority fee per gas (EIP-1559)
+</ParamField>
+
+<ParamField path="maxSpendAmount" type="string" required>
+  Maximum amount to spend
+</ParamField>
+
+<ParamField path="minReceiveAmount" type="string" required>
+  Minimum amount to receive
+</ParamField>
+
+<ParamField path="signatureData" type="string[]" required>
+  Array of signature data
+</ParamField>
+
+<ParamField path="slippagePercent" type="string" required>
+  Slippage tolerance percentage
+</ParamField>
+
+<ParamField path="to" type="string" required>
+  Recipient address
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  Transaction value in wei
+</ParamField>
+
+```typescript
+interface TransactionData {
+  data: string;
+  from: string;
+  gas: string;
+  gasPrice: string;
+  maxPriorityFeePerGas: string;
+  maxSpendAmount: string;
+  minReceiveAmount: string;
+  signatureData: string[];
+  slippagePercent: string;
+  to: string;
+  value: string;
+}
+```
+
+## BroadcastTransactionParams
+
+Parameters for broadcasting a signed transaction.
+
+<ParamField path="signedTx" type="string" required>
+  Signed transaction data
+</ParamField>
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="address" type="string" required>
+  Sender address
+</ParamField>
+
+<ParamField path="extraData" type="string">
+  Additional data to include with the broadcast
+</ParamField>
+
+<ParamField path="enableMevProtection" type="boolean">
+  Enable MEV protection for the transaction
+</ParamField>
+
+<ParamField path="jitoSignedTx" type="string">
+  Jito-signed transaction data (Solana only)
+</ParamField>
+
+```typescript
+interface BroadcastTransactionParams {
+  signedTx: string;
+  chainIndex: string;
+  address: string;
+  extraData?: string;
+  enableMevProtection?: boolean;
+  jitoSignedTx?: string;
+}
+```
+
+## TransactionOrdersParams
+
+Parameters for querying transaction orders.
+
+<ParamField path="address" type="string" required>
+  Wallet address to query orders for
+</ParamField>
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="txStatus" type="string">
+  Filter by transaction status:
+  - "1": Pending
+  - "2": Success
+  - "3": Failed
+</ParamField>
+
+<ParamField path="orderId" type="string">
+  Filter by specific order ID
+</ParamField>
+
+<ParamField path="cursor" type="string">
+  Pagination cursor for fetching next page
+</ParamField>
+
+<ParamField path="limit" type="string">
+  Maximum number of orders to return
+</ParamField>
+
+```typescript
+interface TransactionOrdersParams {
+  address: string;
+  chainIndex: string;
+  txStatus?: string;
+  orderId?: string;
+  cursor?: string;
+  limit?: string;
+}
+```
+
+## TransactionOrder
+
+Information about a transaction order.
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="orderId" type="string" required>
+  Unique order identifier
+</ParamField>
+
+<ParamField path="address" type="string" required>
+  Wallet address associated with the order
+</ParamField>
+
+<ParamField path="txHash" type="string" required>
+  Transaction hash
+</ParamField>
+
+<ParamField path="txStatus" type="string" required>
+  Transaction status:
+  - "1": Pending
+  - "2": Success
+  - "3": Failed
+</ParamField>
+
+<ParamField path="failReason" type="string" required>
+  Reason for failure (empty string if successful)
+</ParamField>
+
+```typescript
+interface TransactionOrder {
+  chainIndex: string;
+  orderId: string;
+  address: string;
+  txHash: string;
+  txStatus: string;
+  failReason: string;
+}
+```

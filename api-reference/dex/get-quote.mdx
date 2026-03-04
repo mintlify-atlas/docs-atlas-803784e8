@@ -1,0 +1,233 @@
+---
+title: "Get Quote"
+description: "Get a price quote for a token swap without executing the transaction"
+---
+
+## Method
+
+```typescript
+async getQuote(params: QuoteParams): Promise<APIResponse<QuoteData>>
+```
+
+Retrieves pricing information and routing details for a potential token swap. This method does not execute a transaction.
+
+## Parameters
+
+<ParamField path="params" type="QuoteParams" required>
+  Quote request parameters
+
+  <Expandable title="properties">
+    <ParamField path="chainIndex" type="string">
+      Chain identifier (e.g., "1" for Ethereum, "501" for Solana)
+    </ParamField>
+
+    <ParamField path="fromTokenAddress" type="string" required>
+      Contract address of the token to swap from
+    </ParamField>
+
+    <ParamField path="toTokenAddress" type="string" required>
+      Contract address of the token to swap to
+    </ParamField>
+
+    <ParamField path="amount" type="string" required>
+      Amount to swap (in token's smallest unit)
+    </ParamField>
+
+    <ParamField path="slippagePercent" type="string" required>
+      Maximum acceptable slippage (0-1, e.g., "0.005" for 0.5%)
+    </ParamField>
+
+    <ParamField path="userWalletAddress" type="string">
+      User's wallet address
+    </ParamField>
+
+    <ParamField path="dexIds" type="string">
+      Comma-separated list of DEX IDs to route through
+    </ParamField>
+
+    <ParamField path="directRoute" type="boolean">
+      Whether to use direct routing only
+    </ParamField>
+
+    <ParamField path="priceImpactProtectionPercent" type="string">
+      Maximum acceptable price impact (0-1)
+    </ParamField>
+
+    <ParamField path="feePercent" type="string">
+      Referral fee percentage
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="QuoteData[]">
+  Array of quote data objects
+
+  <Expandable title="QuoteData properties">
+    <ResponseField name="chainIndex" type="string">
+      Chain identifier
+    </ResponseField>
+
+    <ResponseField name="fromToken" type="TokenInfo">
+      Source token information
+
+      <Expandable title="properties">
+        <ResponseField name="decimal" type="string">
+          Token decimals
+        </ResponseField>
+        <ResponseField name="isHoneyPot" type="boolean">
+          Whether token is a honeypot
+        </ResponseField>
+        <ResponseField name="taxRate" type="string">
+          Token tax rate
+        </ResponseField>
+        <ResponseField name="tokenContractAddress" type="string">
+          Token contract address
+        </ResponseField>
+        <ResponseField name="tokenSymbol" type="string">
+          Token symbol
+        </ResponseField>
+        <ResponseField name="tokenUnitPrice" type="string">
+          Token unit price in USD
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="toToken" type="TokenInfo">
+      Destination token information (same structure as fromToken)
+    </ResponseField>
+
+    <ResponseField name="fromTokenAmount" type="string">
+      Input token amount
+    </ResponseField>
+
+    <ResponseField name="toTokenAmount" type="string">
+      Expected output token amount
+    </ResponseField>
+
+    <ResponseField name="estimateGasFee" type="string">
+      Estimated gas fee in native token
+    </ResponseField>
+
+    <ResponseField name="priceImpactPercent" type="string">
+      Price impact percentage
+    </ResponseField>
+
+    <ResponseField name="tradeFee" type="string">
+      Trading fee amount
+    </ResponseField>
+
+    <ResponseField name="router" type="string">
+      Router information
+    </ResponseField>
+
+    <ResponseField name="swapMode" type="string">
+      Swap mode identifier
+    </ResponseField>
+
+    <ResponseField name="dexRouterList" type="DexRouter[]">
+      List of DEX routers used
+
+      <Expandable title="DexRouter properties">
+        <ResponseField name="dexProtocol" type="object">
+          DEX protocol information
+          <Expandable title="properties">
+            <ResponseField name="dexName" type="string">
+              DEX name
+            </ResponseField>
+            <ResponseField name="percent" type="string">
+              Percentage of swap through this DEX
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+        <ResponseField name="fromToken" type="TokenInfo">
+          Source token for this route
+        </ResponseField>
+        <ResponseField name="toToken" type="TokenInfo">
+          Destination token for this route
+        </ResponseField>
+        <ResponseField name="fromTokenIndex" type="string">
+          Source token index
+        </ResponseField>
+        <ResponseField name="toTokenIndex" type="string">
+          Destination token index
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="contextSlot" type="number">
+      Context slot (Solana only)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+const quote = await client.dex.getQuote({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000', // 1 ETH
+  slippagePercent: '0.005',
+  userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+});
+
+console.log('Quote:', quote.data[0]);
+console.log('Expected output:', quote.data[0].toTokenAmount);
+console.log('Price impact:', quote.data[0].priceImpactPercent);
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "chainIndex": "1",
+    "fromToken": {
+      "decimal": "18",
+      "isHoneyPot": false,
+      "taxRate": "0",
+      "tokenContractAddress": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      "tokenSymbol": "ETH",
+      "tokenUnitPrice": "2500.00"
+    },
+    "toToken": {
+      "decimal": "6",
+      "isHoneyPot": false,
+      "taxRate": "0",
+      "tokenContractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "tokenSymbol": "USDC",
+      "tokenUnitPrice": "1.00"
+    },
+    "fromTokenAmount": "1000000000000000000",
+    "toTokenAmount": "2487500000",
+    "estimateGasFee": "0.002",
+    "priceImpactPercent": "0.15",
+    "tradeFee": "2500000",
+    "router": "aggregator",
+    "swapMode": "auto",
+    "dexRouterList": []
+  }]
+}
+```

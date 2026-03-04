@@ -1,0 +1,204 @@
+---
+title: "Get Chain Data"
+description: "Get blockchain network configuration and metadata"
+---
+
+## Method
+
+```typescript
+async getChainData(chainIndex: string): Promise<APIResponse<ChainData>>
+```
+
+Retrieves configuration data and metadata for a specific blockchain network, including the DEX token approve contract address.
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier (e.g., "1" for Ethereum, "501" for Solana, "137" for Polygon)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="ChainData[]">
+  Array of chain configuration data
+
+  <Expandable title="ChainData properties">
+    <ResponseField name="chainIndex" type="string">
+      Chain identifier
+    </ResponseField>
+
+    <ResponseField name="chainName" type="string">
+      Human-readable chain name
+    </ResponseField>
+
+    <ResponseField name="dexTokenApproveAddress" type="string | null">
+      Contract address for DEX token approvals. This is the address that users must approve to allow the DEX aggregator to spend their tokens.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get Ethereum chain data
+const chainData = await client.dex.getChainData('1');
+
+const chain = chainData.data[0];
+console.log('Chain:', chain.chainName);
+console.log('Approve Address:', chain.dexTokenApproveAddress);
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "chainIndex": "1",
+    "chainName": "Ethereum",
+    "dexTokenApproveAddress": "0x1111111254fb6c44bAC0beD2854e76F90643097d"
+  }]
+}
+```
+
+## Use Cases
+
+### Get Approval Contract Address
+
+The primary use case is to retrieve the DEX approval contract address for token approvals:
+
+```typescript
+const chainData = await client.dex.getChainData('1');
+const approveAddress = chainData.data[0]?.dexTokenApproveAddress;
+
+if (!approveAddress) {
+  throw new Error('No approval address found for this chain');
+}
+
+console.log('Approve tokens to:', approveAddress);
+```
+
+This address is used internally by `executeApproval()`:
+
+```typescript
+// The executeApproval method uses getChainData internally
+const result = await client.dex.executeApproval({
+  chainIndex: '1',
+  tokenContractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  approveAmount: '1000000000'
+});
+```
+
+### Validate Chain Support
+
+```typescript
+async function isChainSupported(chainIndex: string): Promise<boolean> {
+  try {
+    const chainData = await client.dex.getChainData(chainIndex);
+    return chainData.data.length > 0 && chainData.data[0].dexTokenApproveAddress !== null;
+  } catch (error) {
+    return false;
+  }
+}
+
+if (await isChainSupported('1')) {
+  console.log('Ethereum is supported');
+}
+```
+
+### Chain Information Display
+
+```typescript
+const chains = ['1', '137', '56', '42161'];
+
+for (const chainIndex of chains) {
+  const chainData = await client.dex.getChainData(chainIndex);
+  const chain = chainData.data[0];
+  
+  if (chain) {
+    console.log(`${chain.chainName} (${chain.chainIndex})`);
+    console.log(`  Approve Address: ${chain.dexTokenApproveAddress}`);
+  }
+}
+```
+
+## Supported Chains
+
+Common chain identifiers:
+
+<Accordion title="EVM Chains">
+  - **1**: Ethereum Mainnet
+  - **137**: Polygon
+  - **56**: Binance Smart Chain
+  - **42161**: Arbitrum One
+  - **10**: Optimism
+  - **8453**: Base
+  - **43114**: Avalanche C-Chain
+  - **250**: Fantom Opera
+  - **100**: Gnosis Chain
+  - **324**: zkSync Era
+  - **1101**: Polygon zkEVM
+  - **5000**: Mantle
+  - **59144**: Linea
+  - **534352**: Scroll
+  - **81457**: Blast
+  - **146**: Sonic
+  - **196**: X Layer
+</Accordion>
+
+<Accordion title="Non-EVM Chains">
+  - **501**: Solana
+  - **784**: Sui
+</Accordion>
+
+## Notes
+
+- The `dexTokenApproveAddress` is `null` for chains that don't require approvals (like Solana)
+- For EVM chains, this is typically the DEX aggregator router contract
+- This address must be approved before swapping ERC-20 tokens
+- Native tokens (like ETH, MATIC, BNB) don't require approval
+
+## Integration with Approvals
+
+The approval flow uses this data:
+
+```typescript
+// 1. Get the approval address
+const chainData = await client.dex.getChainData('1');
+const approveAddress = chainData.data[0].dexTokenApproveAddress;
+
+// 2. Check current allowance (using Web3 library)
+const allowance = await tokenContract.methods
+  .allowance(userAddress, approveAddress)
+  .call();
+
+// 3. If insufficient, execute approval
+if (BigInt(allowance) < BigInt(amountToSwap)) {
+  await client.dex.executeApproval({
+    chainIndex: '1',
+    tokenContractAddress: tokenAddress,
+    approveAmount: amountToSwap
+  });
+}
+
+// 4. Execute swap
+const result = await client.dex.executeSwap(swapParams);
+```

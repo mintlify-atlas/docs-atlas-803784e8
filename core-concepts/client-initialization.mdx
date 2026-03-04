@@ -1,0 +1,276 @@
+---
+title: Client Initialization
+description: Learn how to initialize the OKXDexClient with proper configuration for EVM, Solana, and Sui networks
+---
+
+## Overview
+
+The `OKXDexClient` is the main entry point for interacting with the OKX DEX SDK. It supports multiple blockchain networks including EVM-compatible chains, Solana, and Sui.
+
+## Basic Client Setup
+
+The client requires OKX API credentials and optional network-specific wallet configurations:
+
+```typescript
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  
+  // Optional: Override defaults
+  baseUrl: 'https://web3.okx.com',  // Default
+  maxRetries: 3,                      // Default
+  timeout: 30000                      // Default (30 seconds)
+});
+```
+
+<Note>
+The client is located at `/src/okx/core/client.ts:7-24` in the source code.
+</Note>
+
+## Configuration Options
+
+The `OKXConfig` type defines all available configuration options:
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `apiKey` | `string` | Your OKX API key |
+| `secretKey` | `string` | Your OKX secret key |
+| `apiPassphrase` | `string` | Your OKX API passphrase |
+| `projectId` | `string` | Your OKX project ID |
+
+### Optional Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `baseUrl` | `string` | `https://web3.okx.com` | OKX API base URL |
+| `maxRetries` | `number` | `3` | Maximum number of retry attempts |
+| `timeout` | `number` | `30000` | Request timeout in milliseconds |
+| `networks` | `NetworkConfigs` | Pre-configured chains | Custom network configurations |
+| `evm` | `EVMConfig` | `undefined` | EVM wallet configuration |
+| `solana` | `SolanaConfig` | `undefined` | Solana wallet configuration |
+| `sui` | `SuiConfig` | `undefined` | Sui wallet configuration |
+
+## EVM Wallet Setup
+
+For EVM-compatible chains (Ethereum, Base, Polygon, Arbitrum, etc.):
+
+```typescript
+import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+import { ethers } from 'ethers';
+
+// Create provider
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+
+// Create wallet from private key
+const evmWallet = createEVMWallet(
+  process.env.EVM_PRIVATE_KEY!,
+  provider
+);
+
+// Initialize client with EVM support
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: {
+    wallet: evmWallet
+  }
+});
+```
+
+### EVMWallet Interface
+
+The EVM wallet implementation provides:
+
+- `address` - Wallet address
+- `provider` - Ethers.js provider instance
+- `signTransaction()` - Sign EVM transactions
+- `signMessage()` - Sign messages
+- `sendTransaction()` - Send signed transactions
+
+<Tip>
+You can implement your own wallet adapter by conforming to the `EVMWallet` interface at `/src/okx/core/evm-wallet.ts:3-9`.
+</Tip>
+
+## Solana Wallet Setup
+
+For Solana network:
+
+```typescript
+import { createWallet } from '@okx-dex/okx-dex-sdk/core/solana-wallet';
+import { Connection } from '@solana/web3.js';
+
+// Create Solana connection
+const connection = new Connection(process.env.SOLANA_RPC_URL!);
+
+// Create wallet from private key (base58 encoded)
+const solanaWallet = createWallet(
+  process.env.SOLANA_PRIVATE_KEY!,
+  connection
+);
+
+// Initialize client with Solana support
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  solana: {
+    wallet: solanaWallet,
+    computeUnits: 300000,  // Optional: Override default
+    maxRetries: 3          // Optional: Override default
+  }
+});
+```
+
+### SolanaConfig Options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wallet` | `Wallet` | Solana wallet instance |
+| `computeUnits` | `number` | Compute units for transactions (optional) |
+| `maxRetries` | `number` | Max retries for Solana transactions (optional) |
+
+<Note>
+The Solana wallet expects a base58-encoded private key. The wallet interface is defined at `/src/okx/core/wallet.ts:17-50`.
+</Note>
+
+## Sui Wallet Setup
+
+For Sui network:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  sui: {
+    privateKey: process.env.SUI_PRIVATE_KEY!,
+    walletAddress: process.env.SUI_WALLET_ADDRESS!,
+    connection: {
+      rpcUrl: process.env.SUI_RPC_URL!,
+      wsEndpoint: process.env.SUI_WS_ENDPOINT  // Optional
+    }
+  }
+});
+```
+
+### SuiConfig Options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `privateKey` | `string` | Sui private key |
+| `walletAddress` | `string` | Sui wallet address |
+| `connection` | `object` | Connection configuration |
+| `connection.rpcUrl` | `string` | Sui RPC endpoint URL |
+| `connection.wsEndpoint` | `string` | WebSocket endpoint (optional) |
+
+## Multi-Chain Configuration
+
+You can configure multiple chains simultaneously:
+
+```typescript
+import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+import { createWallet } from '@okx-dex/okx-dex-sdk/core/solana-wallet';
+import { ethers } from 'ethers';
+import { Connection } from '@solana/web3.js';
+
+// Setup EVM
+const evmProvider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, evmProvider);
+
+// Setup Solana
+const solanaConnection = new Connection(process.env.SOLANA_RPC_URL!);
+const solanaWallet = createWallet(process.env.SOLANA_PRIVATE_KEY!, solanaConnection);
+
+// Multi-chain client
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  
+  // EVM chains (Ethereum, Base, Polygon, etc.)
+  evm: {
+    wallet: evmWallet
+  },
+  
+  // Solana
+  solana: {
+    wallet: solanaWallet
+  },
+  
+  // Sui
+  sui: {
+    privateKey: process.env.SUI_PRIVATE_KEY!,
+    walletAddress: process.env.SUI_WALLET_ADDRESS!,
+    connection: {
+      rpcUrl: process.env.SUI_RPC_URL!
+    }
+  }
+});
+```
+
+## Accessing API Methods
+
+Once initialized, access DEX and Bridge APIs through the client:
+
+```typescript
+// DEX API (quotes, swaps, approvals)
+await client.dex.getQuote({ /* ... */ });
+await client.dex.executeSwap({ /* ... */ });
+await client.dex.executeApproval({ /* ... */ });
+
+// Bridge API (cross-chain transfers)
+await client.bridge.getBridgeQuote({ /* ... */ });
+```
+
+<Note>
+The client exposes `dex` and `bridge` properties initialized at `/src/okx/core/client.ts:22-23`.
+</Note>
+
+## Custom Network Configuration
+
+Override default network settings for specific chains:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  networks: {
+    '8453': {  // Base chain
+      id: '8453',
+      explorer: 'https://basescan.org/tx',
+      defaultSlippage: '0.01',  // 1%
+      maxSlippage: '0.05',      // 5%
+      confirmationTimeout: 120000,  // 2 minutes
+      maxRetries: 5
+    }
+  }
+});
+```
+
+<Warning>
+Custom network configurations are merged with defaults. Only specify fields you want to override.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/core-concepts/authentication">
+    Set up API credentials and environment variables
+  </Card>
+  <Card title="Supported Chains" icon="link" href="/core-concepts/supported-chains">
+    View all supported blockchain networks
+  </Card>
+</CardGroup>

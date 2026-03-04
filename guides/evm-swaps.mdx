@@ -1,0 +1,330 @@
+---
+title: 'EVM Chain Swaps'
+description: 'Execute token swaps on EVM-compatible chains like Ethereum, Base, and Arbitrum'
+icon: 'link'
+---
+
+This guide shows you how to execute token swaps on EVM-compatible chains using the OKX DEX SDK. We'll use Base (chain ID 8453) as our primary example.
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- OKX API credentials (API key, secret key, passphrase, project ID)
+- An EVM wallet with a private key
+- Access to an RPC endpoint for your target chain
+- Native tokens for gas fees
+
+## Setup
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install the required packages:
+    
+    ```bash
+    npm install @okx-dex/sdk ethers dotenv
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    Create a `.env` file with your credentials:
+    
+    ```bash
+    OKX_API_KEY=your_api_key
+    OKX_SECRET_KEY=your_secret_key
+    OKX_API_PASSPHRASE=your_passphrase
+    OKX_PROJECT_ID=your_project_id
+    
+    EVM_PRIVATE_KEY=your_wallet_private_key
+    EVM_WALLET_ADDRESS=your_wallet_address
+    EVM_RPC_URL=https://mainnet.base.org
+    ```
+  </Step>
+
+  <Step title="Initialize the Client">
+    Set up the OKX DEX client with your EVM wallet:
+    
+    ```typescript
+    import { OKXDexClient } from '@okx-dex/sdk';
+    import { ethers } from 'ethers';
+    import { createEVMWallet } from '@okx-dex/sdk/core/evm-wallet';
+    import 'dotenv/config';
+    
+    const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+    const wallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+    
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      evm: {
+        wallet: wallet
+      }
+    });
+    ```
+  </Step>
+</Steps>
+
+## Getting a Quote
+
+Before executing a swap, get a quote to see the expected output amount:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',  // Base mainnet
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',  // ETH (native)
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',    // USDC on Base
+  amount: '10000000000000000000',  // 10 ETH in wei
+  slippagePercent: '0.1'  // 0.1% slippage
+});
+
+console.log('Quote:', JSON.stringify(quote, null, 2));
+```
+
+<Note>
+  For native tokens (ETH, MATIC, etc.), use the address `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`.
+</Note>
+
+## Token Approval
+
+For ERC20 tokens, you need to approve the DEX router before swapping:
+
+<Steps>
+  <Step title="Get Token Information">
+    First, fetch token details to get the correct decimals:
+    
+    ```typescript
+    const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC
+    
+    const tokenInfo = await client.dex.getQuote({
+      chainIndex: '8453',
+      fromTokenAddress: tokenAddress,
+      toTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      amount: '1000000',
+      slippagePercent: '0.5'
+    });
+    
+    const tokenDecimals = parseInt(tokenInfo.data[0].fromToken.decimal);
+    ```
+  </Step>
+
+  <Step title="Convert Amount to Base Units">
+    Helper function to convert human-readable amounts:
+    
+    ```typescript
+    function toBaseUnits(amount: string, decimals: number): string {
+      const [integerPart, decimalPart = ''] = amount.split('.');
+      const currentDecimals = decimalPart.length;
+      
+      let result = integerPart + decimalPart;
+      
+      if (currentDecimals < decimals) {
+        result = result + '0'.repeat(decimals - currentDecimals);
+      } else if (currentDecimals > decimals) {
+        result = result.slice(0, result.length - (currentDecimals - decimals));
+      }
+      
+      return result.replace(/^0+/, '') || '0';
+    }
+    
+    const rawAmount = toBaseUnits('1000', tokenDecimals); // 1000 USDC
+    ```
+  </Step>
+
+  <Step title="Execute Approval">
+    Approve the token for trading:
+    
+    ```typescript
+    const approvalResult = await client.dex.executeApproval({
+      chainIndex: '8453',
+      tokenContractAddress: tokenAddress,
+      approveAmount: rawAmount
+    });
+    
+    if ('alreadyApproved' in approvalResult) {
+      console.log('Token already approved!');
+    } else {
+      console.log('Approval successful!');
+      console.log('Transaction Hash:', approvalResult.transactionHash);
+      console.log('Explorer URL:', approvalResult.explorerUrl);
+    }
+    ```
+  </Step>
+</Steps>
+
+## Executing a Swap
+
+There are two methods to execute swaps: simplified or manual.
+
+<Tabs>
+  <Tab title="Simplified Method">
+    Use the high-level `executeSwap` method that handles everything:
+    
+    ```typescript
+    const result = await client.dex.executeSwap({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',  // ETH
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',    // USDC
+      amount: '100000000000000000',  // 0.1 ETH
+      slippagePercent: '0.05',
+      userWalletAddress: wallet.address,
+      fromTokenReferrerWalletAddress: wallet.address,
+      feePercent: '0.0001'
+    });
+    
+    console.log('Swap completed!');
+    console.log('Transaction ID:', result.transactionId);
+    console.log('Explorer URL:', result.explorerUrl);
+    
+    if (result.details) {
+      console.log(`Input: ${result.details.fromToken.amount} ${result.details.fromToken.symbol}`);
+      console.log(`Output: ${result.details.toToken.amount} ${result.details.toToken.symbol}`);
+      console.log(`Price Impact: ${result.details.priceImpact}%`);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Manual Method">
+    For more control, manually handle signing and broadcasting:
+    
+    ```typescript
+    // Step 1: Get swap data
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '3000000000000000',  // 0.003 ETH
+      slippagePercent: '0.05',
+      userWalletAddress: wallet.address,
+      fromTokenReferrerWalletAddress: wallet.address,
+      feePercent: '0.0001'
+    });
+    
+    const txData = swapData.data[0]?.tx;
+    if (!txData) {
+      throw new Error('No transaction data received');
+    }
+    
+    console.log('From Token Amount:', swapData.data[0].routerResult.fromTokenAmount);
+    console.log('To Token Amount:', swapData.data[0].routerResult.toTokenAmount);
+    console.log('Price Impact:', swapData.data[0].routerResult.priceImpactPercent);
+    
+    // Step 2: Sign the transaction
+    const nonce = await provider.getTransactionCount(wallet.address);
+    
+    const transaction = {
+      to: txData.to,
+      value: txData.value,
+      data: txData.data,
+      gasLimit: txData.gas,
+      gasPrice: txData.gasPrice,
+      maxPriorityFeePerGas: txData.maxPriorityFeePerGas || undefined,
+      nonce: nonce,
+      chainId: 8453
+    };
+    
+    const signedTx = await wallet.signTransaction(transaction);
+    
+    // Step 3: Broadcast with MEV protection
+    const broadcastResult = await client.dex.broadcastTransaction({
+      signedTx: signedTx,
+      chainIndex: '8453',
+      address: wallet.address,
+      enableMevProtection: true
+    });
+    
+    console.log('Transaction broadcasted!');
+    console.log('Order ID:', broadcastResult.data[0].orderId);
+    console.log('Transaction Hash:', broadcastResult.data[0].txHash);
+    console.log('Explorer:', `https://web3.okx.com/explorer/base/tx/${broadcastResult.data[0].txHash}`);
+    ```
+  </Tab>
+</Tabs>
+
+## Common Token Addresses
+
+### Base (Chain ID: 8453)
+
+| Token | Address |
+|-------|----------|
+| ETH (Native) | `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` |
+| USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| WETH | `0x4200000000000000000000000000000000000006` |
+
+### Ethereum (Chain ID: 1)
+
+| Token | Address |
+|-------|----------|
+| ETH (Native) | `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` |
+| USDT | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
+| USDC | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+
+## Supported Chains
+
+The SDK supports all EVM-compatible chains. Common chain IDs:
+
+- **Ethereum**: `1`
+- **Base**: `8453`
+- **Arbitrum**: `42161`
+- **Optimism**: `10`
+- **Polygon**: `137`
+- **Avalanche C-Chain**: `43114`
+- **BSC**: `56`
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Set Appropriate Slippage" icon="percent">
+    Use 0.05-0.5% for stable pairs, 0.5-2% for volatile pairs
+  </Card>
+  
+  <Card title="Check Allowances" icon="check">
+    Verify token approvals before attempting swaps
+  </Card>
+  
+  <Card title="Enable MEV Protection" icon="shield">
+    Use MEV protection for large trades on Ethereum
+  </Card>
+  
+  <Card title="Monitor Gas Prices" icon="gas-pump">
+    Check network congestion before executing swaps
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+```typescript
+try {
+  const result = await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    amount: '100000000000000000',
+    slippagePercent: '0.05',
+    userWalletAddress: wallet.address
+  });
+  
+  console.log('Success:', result.transactionId);
+} catch (error) {
+  if (error.message.includes('insufficient')) {
+    console.error('Insufficient balance for swap');
+  } else if (error.message.includes('allowance')) {
+    console.error('Token approval required');
+  } else {
+    console.error('Swap failed:', error.message);
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Solana Swaps" icon="bolt" href="/guides/solana-swaps">
+    Learn how to execute swaps on Solana
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api-reference/dex/get-quote">
+    View complete API documentation
+  </Card>
+</CardGroup>

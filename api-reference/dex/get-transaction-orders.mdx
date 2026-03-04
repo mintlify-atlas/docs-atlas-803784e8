@@ -1,0 +1,390 @@
+---
+title: "Get Transaction Orders"
+description: "Query transaction history and status for broadcasted transactions"
+---
+
+## Method
+
+```typescript
+async getTransactionOrders(params: TransactionOrdersParams): Promise<APIResponse<TransactionOrdersData>>
+```
+
+Retrieves transaction order history for a specific address and chain, allowing you to track the status of transactions broadcasted through the OKX DEX API.
+
+## Parameters
+
+<ParamField path="params" type="TransactionOrdersParams" required>
+  Query parameters for transaction orders
+
+  <Expandable title="properties">
+    <ParamField path="address" type="string" required>
+      Wallet address to query transactions for
+    </ParamField>
+
+    <ParamField path="chainIndex" type="string" required>
+      Chain identifier (e.g., "1" for Ethereum, "501" for Solana)
+    </ParamField>
+
+    <ParamField path="txStatus" type="string">
+      Filter by transaction status:
+      - "1": Pending
+      - "2": Success
+      - "3": Failed
+    </ParamField>
+
+    <ParamField path="orderId" type="string">
+      Specific order ID to query (from broadcastTransaction response)
+    </ParamField>
+
+    <ParamField path="cursor" type="string">
+      Pagination cursor from previous response
+    </ParamField>
+
+    <ParamField path="limit" type="string">
+      Maximum number of orders to return (default: 20)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="TransactionOrdersData[]">
+  Array containing transaction orders data
+
+  <Expandable title="TransactionOrdersData properties">
+    <ResponseField name="cursor" type="string">
+      Cursor for pagination (use in next request to get more results)
+    </ResponseField>
+
+    <ResponseField name="orders" type="TransactionOrder[]">
+      Array of transaction orders
+
+      <Expandable title="TransactionOrder properties">
+        <ResponseField name="chainIndex" type="string">
+          Chain identifier
+        </ResponseField>
+
+        <ResponseField name="orderId" type="string">
+          Unique order identifier
+        </ResponseField>
+
+        <ResponseField name="address" type="string">
+          Wallet address
+        </ResponseField>
+
+        <ResponseField name="txHash" type="string">
+          Transaction hash/signature
+        </ResponseField>
+
+        <ResponseField name="txStatus" type="string">
+          Transaction status:
+          - "1": Pending
+          - "2": Success
+          - "3": Failed
+        </ResponseField>
+
+        <ResponseField name="failReason" type="string">
+          Reason for failure (empty if successful)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+### Get All Transactions
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+const orders = await client.dex.getTransactionOrders({
+  address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  chainIndex: '1'
+});
+
+console.log(`Found ${orders.data[0].orders.length} transactions`);
+orders.data[0].orders.forEach(order => {
+  console.log(`${order.txHash}: ${order.txStatus}`);
+});
+```
+
+### Filter by Status
+
+```typescript
+// Get only successful transactions
+const successfulTxs = await client.dex.getTransactionOrders({
+  address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  chainIndex: '1',
+  txStatus: '2' // Success
+});
+
+// Get only pending transactions
+const pendingTxs = await client.dex.getTransactionOrders({
+  address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  chainIndex: '1',
+  txStatus: '1' // Pending
+});
+
+// Get only failed transactions
+const failedTxs = await client.dex.getTransactionOrders({
+  address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  chainIndex: '1',
+  txStatus: '3' // Failed
+});
+```
+
+### Query Specific Order
+
+```typescript
+// After broadcasting a transaction
+const broadcastResult = await client.dex.broadcastTransaction({
+  signedTx,
+  chainIndex: '1',
+  address: walletAddress
+});
+
+const orderId = broadcastResult.data[0].orderId;
+
+// Query the specific order
+const orderStatus = await client.dex.getTransactionOrders({
+  address: walletAddress,
+  chainIndex: '1',
+  orderId: orderId
+});
+
+const order = orderStatus.data[0].orders[0];
+console.log('Status:', order.txStatus);
+console.log('Hash:', order.txHash);
+```
+
+### Pagination
+
+```typescript
+async function getAllOrders(address: string, chainIndex: string) {
+  const allOrders = [];
+  let cursor = '';
+
+  do {
+    const result = await client.dex.getTransactionOrders({
+      address,
+      chainIndex,
+      cursor,
+      limit: '50'
+    });
+
+    allOrders.push(...result.data[0].orders);
+    cursor = result.data[0].cursor;
+  } while (cursor);
+
+  return allOrders;
+}
+
+const orders = await getAllOrders(
+  '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  '1'
+);
+console.log(`Total orders: ${orders.length}`);
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "cursor": "eyJvcmRlcklkIjoiMTIzNDU2Nzg5MCJ9",
+    "orders": [
+      {
+        "chainIndex": "1",
+        "orderId": "1234567890abcdef",
+        "address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        "txHash": "0xabc123...",
+        "txStatus": "2",
+        "failReason": ""
+      },
+      {
+        "chainIndex": "1",
+        "orderId": "0987654321fedcba",
+        "address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        "txHash": "0xdef456...",
+        "txStatus": "3",
+        "failReason": "insufficient balance"
+      }
+    ]
+  }]
+}
+```
+
+## Use Cases
+
+### Track Transaction Status
+
+```typescript
+async function waitForTransactionConfirmation(
+  orderId: string,
+  address: string,
+  chainIndex: string,
+  timeoutMs: number = 60000
+) {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const result = await client.dex.getTransactionOrders({
+      address,
+      chainIndex,
+      orderId
+    });
+
+    const order = result.data[0].orders[0];
+
+    if (order.txStatus === '2') {
+      return { success: true, txHash: order.txHash };
+    } else if (order.txStatus === '3') {
+      return { success: false, reason: order.failReason };
+    }
+
+    // Still pending, wait and retry
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+
+  throw new Error('Transaction confirmation timeout');
+}
+```
+
+### Transaction History Display
+
+```typescript
+const orders = await client.dex.getTransactionOrders({
+  address: userAddress,
+  chainIndex: '1',
+  limit: '20'
+});
+
+const statusLabels = {
+  '1': 'Pending',
+  '2': 'Success',
+  '3': 'Failed'
+};
+
+console.log('Transaction History:');
+console.log('━'.repeat(80));
+
+orders.data[0].orders.forEach(order => {
+  console.log(`${order.txHash.slice(0, 10)}... | ${statusLabels[order.txStatus]}`);
+  if (order.failReason) {
+    console.log(`  Reason: ${order.failReason}`);
+  }
+});
+```
+
+### Failed Transaction Analysis
+
+```typescript
+const failedOrders = await client.dex.getTransactionOrders({
+  address: userAddress,
+  chainIndex: '1',
+  txStatus: '3' // Failed
+});
+
+const failureReasons = {};
+failedOrders.data[0].orders.forEach(order => {
+  const reason = order.failReason || 'Unknown';
+  failureReasons[reason] = (failureReasons[reason] || 0) + 1;
+});
+
+console.log('Failure Reasons:');
+Object.entries(failureReasons).forEach(([reason, count]) => {
+  console.log(`${reason}: ${count}`);
+});
+```
+
+### Monitor Pending Transactions
+
+```typescript
+async function monitorPendingTransactions(
+  address: string,
+  chainIndex: string
+) {
+  setInterval(async () => {
+    const pending = await client.dex.getTransactionOrders({
+      address,
+      chainIndex,
+      txStatus: '1' // Pending
+    });
+
+    const count = pending.data[0].orders.length;
+    if (count > 0) {
+      console.log(`${count} pending transactions`);
+      pending.data[0].orders.forEach(order => {
+        console.log(`  - ${order.txHash}`);
+      });
+    }
+  }, 10000); // Check every 10 seconds
+}
+```
+
+### Export Transaction History
+
+```typescript
+async function exportTransactionHistory(
+  address: string,
+  chainIndex: string
+) {
+  const allOrders = [];
+  let cursor = '';
+
+  do {
+    const result = await client.dex.getTransactionOrders({
+      address,
+      chainIndex,
+      cursor,
+      limit: '100'
+    });
+
+    allOrders.push(...result.data[0].orders);
+    cursor = result.data[0].cursor;
+  } while (cursor);
+
+  // Convert to CSV
+  const csv = [
+    'Order ID,Chain,Address,TX Hash,Status,Fail Reason',
+    ...allOrders.map(order => 
+      `${order.orderId},${order.chainIndex},${order.address},${order.txHash},${order.txStatus},${order.failReason}`
+    )
+  ].join('\n');
+
+  return csv;
+}
+```
+
+## Transaction Status Values
+
+- **"1" (Pending)**: Transaction has been broadcasted but not yet confirmed
+- **"2" (Success)**: Transaction has been confirmed successfully
+- **"3" (Failed)**: Transaction has failed (check `failReason` for details)
+
+## Notes
+
+- Only returns transactions broadcasted through `broadcastTransaction()`
+- Transaction history is maintained per address and chain
+- Use pagination for addresses with many transactions
+- Failed transactions include a `failReason` field
+- The `orderId` is assigned when broadcasting the transaction
+- Historical data may be limited to recent transactions

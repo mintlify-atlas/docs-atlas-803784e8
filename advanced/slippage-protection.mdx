@@ -1,0 +1,364 @@
+---
+title: Slippage protection
+description: Configure slippage tolerance and price impact limits for your swaps
+---
+
+Slippage protection ensures your swaps execute within acceptable price bounds, protecting you from unfavorable price movements between quote and execution.
+
+## What is slippage?
+
+Slippage is the difference between the expected price of a trade and the actual execution price. It occurs when:
+
+- Market prices move between getting a quote and executing
+- Large trades create price impact in liquidity pools
+- Network congestion delays transaction execution
+- Other trades execute before yours
+
+<Warning>
+Without slippage protection, your swap may execute at a much worse price than expected, or fail entirely.
+</Warning>
+
+## Slippage tolerance
+
+The SDK provides two ways to set slippage tolerance:
+
+### Fixed slippage percentage
+
+Set a specific maximum slippage percentage:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005'  // 0.5% slippage tolerance
+});
+```
+
+**Common slippage values:**
+
+| Value | Percentage | Use case |
+|-------|-----------|----------|
+| `0.001` | 0.1% | Stablecoin swaps, high liquidity pairs |
+| `0.005` | 0.5% | Standard swaps, moderate liquidity |
+| `0.01` | 1% | Volatile tokens, lower liquidity |
+| `0.03` | 3% | Very volatile tokens, very low liquidity |
+
+### Auto slippage
+
+Let the SDK automatically calculate optimal slippage based on market conditions:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  autoSlippage: true,
+  maxAutoSlippagePercent: '0.05'  // Maximum 5% auto slippage
+});
+```
+
+<Info>
+Auto slippage analyzes current market volatility and liquidity to set the optimal slippage tolerance, while respecting your maximum limit.
+</Info>
+
+## Price impact protection
+
+Price impact is different from slippage - it's the effect your trade has on the market price due to your trade size:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  priceImpactProtectionPercent: '0.03'  // Reject if price impact > 3%
+});
+```
+
+The trade will be rejected if the price impact exceeds 3%.
+
+## Check price impact
+
+Always check the price impact in your quote before executing:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: '0.005'
+});
+
+const priceImpact = parseFloat(quote.data[0].priceImpactPercent);
+
+console.log(`Price impact: ${priceImpact}%`);
+
+if (priceImpact > 3) {
+  console.warn('⚠️ High price impact! Consider reducing trade size.');
+}
+
+if (priceImpact > 5) {
+  throw new Error('Price impact too high - aborting trade');
+}
+```
+
+## Minimum receive amount
+
+The SDK calculates the minimum amount you'll receive based on your slippage tolerance:
+
+```typescript
+const swapData = await client.dex.getSwapData({
+  chainIndex: '8453',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: '0.005',
+  userWalletAddress
+});
+
+const minReceive = swapData.data[0].tx.minReceiveAmount;
+const expectedReceive = swapData.data[0].routerResult.toTokenAmount;
+
+console.log(`Expected: ${expectedReceive}`);
+console.log(`Minimum: ${minReceive}`);
+console.log(`Difference: ${(1 - parseFloat(minReceive) / parseFloat(expectedReceive)) * 100}%`);
+```
+
+The transaction will revert if you receive less than `minReceiveAmount`.
+
+## Slippage strategies
+
+<Tabs>
+  <Tab title="Conservative">
+    For risk-averse users or high-value trades:
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.001',  // 0.1% slippage
+      priceImpactProtectionPercent: '0.01',  // 1% max price impact
+      userWalletAddress
+    });
+    ```
+    
+    <Note>
+    Conservative slippage may cause transactions to fail in volatile markets. Be prepared to retry with higher slippage.
+    </Note>
+  </Tab>
+  
+  <Tab title="Moderate">
+    Balanced approach for most use cases:
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005',  // 0.5% slippage
+      priceImpactProtectionPercent: '0.03',  // 3% max price impact
+      userWalletAddress
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Aggressive">
+    For volatile tokens or when execution is critical:
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      autoSlippage: true,  // Let SDK optimize
+      maxAutoSlippagePercent: '0.05',  // 5% maximum
+      userWalletAddress
+    });
+    ```
+    
+    <Warning>
+    High slippage tolerance increases the risk of unfavorable execution, especially during volatile market conditions.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Stablecoins">
+    For stablecoin swaps with minimal expected slippage:
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: USDC_ADDRESS,
+      toTokenAddress: USDT_ADDRESS,
+      amount,
+      slippagePercent: '0.0005',  // 0.05% slippage
+      dexIds: 'curve',  // Use Curve for stableswaps
+      userWalletAddress
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Handling slippage failures
+
+When a transaction fails due to slippage:
+
+```typescript
+try {
+  const result = await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress,
+    toTokenAddress,
+    amount,
+    slippagePercent: '0.005',
+    userWalletAddress
+  });
+  
+  console.log('Swap successful:', result.transactionId);
+  
+} catch (error: any) {
+  if (error.message?.includes('slippage') || error.message?.includes('Slippage')) {
+    console.error('Transaction failed due to slippage');
+    
+    // Retry with higher slippage
+    console.log('Retrying with 1% slippage...');
+    
+    const retryResult = await client.dex.executeSwap({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.01',  // Increased from 0.5% to 1%
+      userWalletAddress
+    });
+    
+    console.log('Retry successful:', retryResult.transactionId);
+  } else {
+    throw error;
+  }
+}
+```
+
+## Dynamic slippage based on trade size
+
+Adjust slippage tolerance based on trade size:
+
+```typescript
+function calculateSlippage(amountUSD: number): string {
+  if (amountUSD < 100) {
+    return '0.005';  // 0.5% for small trades
+  } else if (amountUSD < 1000) {
+    return '0.01';   // 1% for medium trades
+  } else {
+    return '0.03';   // 3% for large trades
+  }
+}
+
+const amountInUSD = 5000;  // $5,000 trade
+const slippage = calculateSlippage(amountInUSD);
+
+const swapData = await client.dex.getSwapData({
+  chainIndex: '8453',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: slippage,
+  userWalletAddress
+});
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Always check price impact">
+    Review price impact before executing to avoid excessive losses:
+    
+    ```typescript
+    const quote = await client.dex.getQuote({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005'
+    });
+    
+    const priceImpact = parseFloat(quote.data[0].priceImpactPercent);
+    
+    // Warn user if price impact is high
+    if (priceImpact > 1) {
+      const confirmed = await confirmHighImpact(priceImpact);
+      if (!confirmed) {
+        throw new Error('User cancelled high impact trade');
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use auto slippage for volatile markets">
+    Let the SDK optimize slippage in fast-moving markets:
+    
+    ```typescript
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      autoSlippage: true,
+      maxAutoSlippagePercent: '0.05',
+      userWalletAddress
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Combine with MEV protection">
+    Use slippage protection together with MEV protection for maximum security:
+    
+    ```typescript
+    // Get swap with slippage protection
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress,
+      toTokenAddress,
+      amount,
+      slippagePercent: '0.005',
+      priceImpactProtectionPercent: '0.03',
+      userWalletAddress
+    });
+    
+    // Execute with MEV protection
+    const signedTx = await wallet.signTransaction(transaction);
+    
+    await client.dex.broadcastTransaction({
+      signedTx,
+      chainIndex: '8453',
+      address: walletAddress,
+      enableMevProtection: true
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="MEV protection" icon="shield" href="/advanced/mev-protection">
+    Protect against front-running and sandwich attacks
+  </Card>
+  <Card title="Custom routes" icon="route" href="/advanced/custom-routes">
+    Control which DEXs are used for swaps
+  </Card>
+  <Card title="Quote API" icon="quote-left" href="/api-reference/dex/get-quote">
+    Get price quotes with slippage parameters
+  </Card>
+  <Card title="Error handling" icon="bug" href="/core-concepts/error-handling">
+    Handle slippage and other errors
+  </Card>
+</CardGroup>

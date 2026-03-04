@@ -1,80 +1,431 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Execute your first token swap with OKX DEX SDK in under 5 minutes"
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through executing a token swap on Base blockchain. By the end, you'll have a working example that:
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- Initializes the OKX DEX SDK client
+- Gets a real-time price quote
+- Executes a token swap
+- Tracks the transaction status
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Make sure you've completed the [Installation](/installation) guide before proceeding.
 </Note>
+
+## Quick Setup
+
+Let's execute a swap from ETH to USDC on Base in three steps.
+
+<Steps>
+  <Step title="Initialize the SDK Client">
+    First, import the SDK and set up your client with API credentials:
+    
+    ```typescript swap.ts
+    import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+    import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+    import { ethers } from 'ethers';
+    import 'dotenv/config';
+    
+    // Create EVM wallet instance
+    const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+    const wallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+    
+    // Initialize the client
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      evm: {
+        wallet: wallet
+      }
+    });
+    ```
+    
+    <Warning>
+      Ensure your `.env` file contains all required credentials as shown in the [Installation](/installation) guide.
+    </Warning>
+  </Step>
+  
+  <Step title="Get a Price Quote">
+    Before executing a swap, get a quote to see the expected output and price impact:
+    
+    ```typescript swap.ts
+    // Define token addresses on Base
+    const TOKENS = {
+      ETH: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',  // Native ETH
+      USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' // USDC on Base
+    };
+    
+    async function getSwapQuote() {
+      const quote = await client.dex.getQuote({
+        chainIndex: '8453',                        // Base Chain
+        fromTokenAddress: TOKENS.ETH,
+        toTokenAddress: TOKENS.USDC,
+        amount: '100000000000000000',              // 0.1 ETH in wei
+        slippagePercent: '0.5'                     // 0.5% slippage
+      });
+      
+      console.log('Quote Details:');
+      console.log(`Rate: 1 ${quote.data[0].fromToken.tokenSymbol} = ${quote.data[0].toTokenAmount} ${quote.data[0].toToken.tokenSymbol}`);
+      console.log(`Price Impact: ${quote.data[0].priceImpactPercentage}%`);
+      
+      return quote;
+    }
+    ```
+    
+    <Tip>
+      The `amount` parameter should be in the token's base units (wei for ETH). Use `parseFloat(amount) * Math.pow(10, decimals)` to convert.
+    </Tip>
+  </Step>
+  
+  <Step title="Execute the Swap">
+    Once you're satisfied with the quote, execute the swap:
+    
+    ```typescript swap.ts
+    async function executeSwap() {
+      try {
+        const swap = await client.dex.executeSwap({
+          chainIndex: '8453',                      // Base Chain
+          fromTokenAddress: TOKENS.ETH,
+          toTokenAddress: TOKENS.USDC,
+          amount: '100000000000000000',            // 0.1 ETH
+          slippagePercent: '0.5',                  // 0.5% slippage
+          userWalletAddress: wallet.address
+        });
+        
+        console.log('\nSwap completed successfully!');
+        console.log('Transaction ID:', swap.transactionId);
+        console.log('Explorer URL:', swap.explorerUrl);
+        
+        if (swap.details) {
+          console.log(`Input: ${swap.details.fromToken.amount} ${swap.details.fromToken.symbol}`);
+          console.log(`Output: ${swap.details.toToken.amount} ${swap.details.toToken.symbol}`);
+        }
+      } catch (error: any) {
+        console.error('Swap failed:', error.message);
+      }
+    }
+    
+    // Run the swap
+    executeSwap();
+    ```
+  </Step>
+</Steps>
+
+## Complete Working Example
+
+Here's the full code from the SDK's example directory:
+
+<CodeGroup>
+
+```typescript EVM Swap (Base)
+import { createEVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+import 'dotenv/config';
+import { ethers } from 'ethers';
+
+// Token addresses on Base
+const TOKENS = {
+  NATIVE: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+  USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+} as const;
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const wallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+async function main() {
+  // Initialize client
+  const client = new OKXDexClient({
+    apiKey: process.env.OKX_API_KEY!,
+    secretKey: process.env.OKX_SECRET_KEY!,
+    apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+    projectId: process.env.OKX_PROJECT_ID!,
+    evm: {
+      wallet: wallet
+    }
+  });
+
+  const amount = '0.1'; // 0.1 ETH
+  const DECIMALS = 18;
+  const rawAmount = (parseFloat(amount) * Math.pow(10, DECIMALS)).toString();
+
+  // Get quote
+  const quote = await client.dex.getQuote({
+    chainIndex: '8453',
+    fromTokenAddress: TOKENS.NATIVE,
+    toTokenAddress: TOKENS.USDC,
+    amount: rawAmount,
+    slippagePercent: '0.5'
+  });
+
+  console.log('Quote:', `${quote.data[0].fromToken.tokenSymbol} → ${quote.data[0].toToken.tokenSymbol}`);
+  console.log(`Expected output: ${quote.data[0].toTokenAmount} USDC`);
+
+  // Execute swap
+  const result = await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: TOKENS.NATIVE,
+    toTokenAddress: TOKENS.USDC,
+    amount: rawAmount,
+    slippagePercent: '0.5',
+    userWalletAddress: wallet.address
+  });
+
+  console.log('\nSwap completed!');
+  console.log('Transaction:', result.transactionId);
+  console.log('Explorer:', result.explorerUrl);
+}
+
+main();
+```
+
+```typescript Solana Swap
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+import { Connection } from '@solana/web3.js';
+import { createWallet } from '@okx-dex/okx-dex-sdk/core/wallet';
+import 'dotenv/config';
+
+// Token addresses on Solana
+const TOKENS = {
+  SOL: 'So11111111111111111111111111111111111111112',  // Native SOL
+  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+};
+
+async function main() {
+  const connection = new Connection(process.env.SOLANA_RPC_URL!);
+  const wallet = createWallet(process.env.SOLANA_PRIVATE_KEY!, connection);
+
+  // Initialize client
+  const client = new OKXDexClient({
+    apiKey: process.env.OKX_API_KEY!,
+    secretKey: process.env.OKX_SECRET_KEY!,
+    apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+    projectId: process.env.OKX_PROJECT_ID!,
+    solana: {
+      wallet: wallet,
+      computeUnits: 300000,
+      maxRetries: 3
+    }
+  });
+
+  const amount = '0.5'; // 0.5 SOL
+  const DECIMALS = 9;   // SOL has 9 decimals
+  const rawAmount = (parseFloat(amount) * Math.pow(10, DECIMALS)).toString();
+
+  // Get quote
+  const quote = await client.dex.getQuote({
+    chainIndex: '501',  // Solana
+    fromTokenAddress: TOKENS.SOL,
+    toTokenAddress: TOKENS.USDC,
+    amount: rawAmount,
+    slippagePercent: '0.5'
+  });
+
+  console.log(`Quote: 1 SOL → ${quote.data[0].toTokenAmount} USDC`);
+
+  // Execute swap
+  const result = await client.dex.executeSwap({
+    chainIndex: '501',
+    fromTokenAddress: TOKENS.SOL,
+    toTokenAddress: TOKENS.USDC,
+    amount: rawAmount,
+    slippagePercent: '0.5',
+    userWalletAddress: wallet.publicKey.toString()
+  });
+
+  console.log('\nSwap completed!');
+  console.log('Transaction:', result.transactionId);
+  console.log('Explorer:', result.explorerUrl);
+}
+
+main();
+```
+
+</CodeGroup>
+
+## Understanding Token Approvals (ERC-20 Only)
+
+When swapping ERC-20 tokens on EVM chains, you need to approve the DEX router to spend your tokens. **This is not needed for native tokens like ETH.**
+
+```typescript
+// Only needed when swapping FROM an ERC-20 token (not native ETH)
+const approval = await client.dex.executeApproval({
+  chainIndex: '8453',
+  tokenContractAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+  approveAmount: '1000000000' // Amount to approve (1000 USDC with 6 decimals)
+});
+
+console.log('Approval tx:', approval.transactionHash);
+```
+
+<Note>
+  The SDK automatically checks existing allowances. If sufficient approval already exists, it will skip the approval step.
+</Note>
+
+## Token Addresses by Chain
+
+Here are common token addresses for supported chains:
+
+<Tabs>
+  <Tab title="Base (8453)">
+    ```typescript
+    const BASE_TOKENS = {
+      ETH: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      WETH: '0x4200000000000000000000000000000000000006'
+    };
+    ```
+  </Tab>
+  
+  <Tab title="Ethereum (1)">
+    ```typescript
+    const ETH_TOKENS = {
+      ETH: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+      USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+    };
+    ```
+  </Tab>
+  
+  <Tab title="Solana (501)">
+    ```typescript
+    const SOLANA_TOKENS = {
+      SOL: 'So11111111111111111111111111111111111111112',
+      USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+    };
+    ```
+  </Tab>
+  
+  <Tab title="Sui (784)">
+    ```typescript
+    const SUI_TOKENS = {
+      SUI: '0x2::sui::SUI',
+      USDC: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC'
+    };
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Use `client.dex.getTokens(chainId)` to fetch all available tokens for a specific chain.
+</Tip>
+
+## Error Handling
+
+Always wrap your swap logic in try-catch blocks to handle errors gracefully:
+
+```typescript
+try {
+  const swap = await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: TOKENS.ETH,
+    toTokenAddress: TOKENS.USDC,
+    amount: '100000000000000000',
+    slippagePercent: '0.5',
+    userWalletAddress: wallet.address
+  });
+  
+  console.log('Success:', swap.transactionId);
+} catch (error: any) {
+  // Handle specific error cases
+  if (error?.status === 429) {
+    console.log('Rate limited, try again later');
+  } else if (error.message?.includes('Insufficient liquidity')) {
+    console.log('Not enough liquidity for this trade');
+  } else if (error.message?.includes('Insufficient balance')) {
+    console.log('Wallet balance too low');
+  } else if (error.message?.includes('Slippage too high')) {
+    console.log('Price impact exceeds slippage tolerance');
+  } else {
+    console.error('Swap failed:', error.message);
+  }
+}
+```
+
+<AccordionGroup>
+  <Accordion icon="triangle-exclamation" title="Common Errors">
+    | Error | Cause | Solution |
+    |-------|-------|----------|
+    | `Insufficient liquidity` | Not enough liquidity for trade size | Reduce amount or try different route |
+    | `Insufficient balance` | Wallet doesn't have enough tokens | Check wallet balance and fund |
+    | `Slippage too high` | Price moved beyond tolerance | Increase slippage or reduce amount |
+    | `Rate limited (429)` | Too many API requests | Implement retry logic with backoff |
+    | `Invalid token address` | Token not supported on chain | Verify token address for the chain |
+  </Accordion>
+</AccordionGroup>
+
+## Testing Your Integration
+
+Before going to production, test with small amounts:
+
+<Steps>
+  <Step title="Start with testnet">
+    Use testnet RPC URLs and test tokens first:
+    
+    ```bash
+    # Base Sepolia testnet
+    EVM_RPC_URL=https://sepolia.base.org
+    ```
+  </Step>
+  
+  <Step title="Use minimal amounts">
+    When testing on mainnet, start with very small amounts:
+    
+    ```typescript
+    const amount = '10000000000000000'; // 0.01 ETH
+    ```
+  </Step>
+  
+  <Step title="Monitor transactions">
+    Always check the explorer URL to verify transaction success:
+    
+    ```typescript
+    console.log('View on explorer:', swap.explorerUrl);
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+Now that you've executed your first swap, explore more features:
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api-reference/client/okxdexclient"
+  >
+    Explore all available methods and parameters
+  </Card>
+  
+  <Card
+    title="Advanced Features"
+    icon="flask"
+    href="/advanced/transaction-simulation"
+  >
+    Learn about gas estimation, simulation, and MEV protection
+  </Card>
+  
+  <Card
+    title="Supported Chains"
+    icon="network-wired"
+    href="/core-concepts/supported-chains"
+  >
+    View all supported blockchain networks
+  </Card>
+  
+  <Card
+    title="Error Handling"
+    icon="shield-halved"
+    href="/core-concepts/error-handling"
+  >
+    Implement robust error handling and retry logic
+  </Card>
+</CardGroup>

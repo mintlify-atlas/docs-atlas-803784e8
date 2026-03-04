@@ -1,0 +1,355 @@
+---
+title: "Get Gas Price"
+description: "Get current gas prices for a blockchain network"
+---
+
+## Method
+
+```typescript
+async getGasPrice(chainIndex: string): Promise<APIResponse<GasPriceData>>
+```
+
+Retrieves current gas price information for a specific blockchain network, including support for EIP-1559 transactions and Solana priority fees.
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier (e.g., "1" for Ethereum, "501" for Solana, "137" for Polygon)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="GasPriceData[]">
+  Array containing gas price data
+
+  <Expandable title="GasPriceData properties">
+    <ResponseField name="normal" type="string">
+      Standard gas price in wei (or lamports for Solana)
+    </ResponseField>
+
+    <ResponseField name="min" type="string">
+      Minimum gas price
+    </ResponseField>
+
+    <ResponseField name="max" type="string">
+      Maximum gas price
+    </ResponseField>
+
+    <ResponseField name="supporteip1559" type="boolean">
+      Whether the chain supports EIP-1559 transactions
+    </ResponseField>
+
+    <ResponseField name="eip1559Protocol" type="object">
+      EIP-1559 fee data (present when supporteip1559 is true)
+
+      <Expandable title="properties">
+        <ResponseField name="suggestBaseFee" type="string">
+          Suggested base fee per gas
+        </ResponseField>
+        <ResponseField name="baseFee" type="string">
+          Current base fee per gas
+        </ResponseField>
+        <ResponseField name="proposePriorityFee" type="string">
+          Proposed priority fee (normal speed)
+        </ResponseField>
+        <ResponseField name="safePriorityFee" type="string">
+          Safe priority fee (slower but cheaper)
+        </ResponseField>
+        <ResponseField name="fastPriorityFee" type="string">
+          Fast priority fee (higher priority)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="priorityFee" type="object">
+      Solana-specific priority fees (only present for Solana)
+
+      <Expandable title="properties">
+        <ResponseField name="proposePriorityFee" type="string">
+          Proposed priority fee
+        </ResponseField>
+        <ResponseField name="safePriorityFee" type="string">
+          Safe priority fee
+        </ResponseField>
+        <ResponseField name="fastPriorityFee" type="string">
+          Fast priority fee
+        </ResponseField>
+        <ResponseField name="extremePriorityFee" type="string">
+          Extreme priority fee (highest priority)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+### Ethereum (EIP-1559)
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+const gasPrice = await client.dex.getGasPrice('1');
+const data = gasPrice.data[0];
+
+if (data.supporteip1559 && data.eip1559Protocol) {
+  console.log('Base Fee:', data.eip1559Protocol.baseFee);
+  console.log('Priority Fees:');
+  console.log('  Safe:', data.eip1559Protocol.safePriorityFee);
+  console.log('  Normal:', data.eip1559Protocol.proposePriorityFee);
+  console.log('  Fast:', data.eip1559Protocol.fastPriorityFee);
+} else {
+  console.log('Legacy Gas Price:', data.normal);
+}
+```
+
+### Solana
+
+```typescript
+const gasPrice = await client.dex.getGasPrice('501');
+const data = gasPrice.data[0];
+
+if (data.priorityFee) {
+  console.log('Solana Priority Fees (micro-lamports):');
+  console.log('  Safe:', data.priorityFee.safePriorityFee);
+  console.log('  Propose:', data.priorityFee.proposePriorityFee);
+  console.log('  Fast:', data.priorityFee.fastPriorityFee);
+  console.log('  Extreme:', data.priorityFee.extremePriorityFee);
+}
+```
+
+## Response Examples
+
+### Ethereum (EIP-1559 Supported)
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "normal": "20000000000",
+    "min": "15000000000",
+    "max": "50000000000",
+    "supporteip1559": true,
+    "eip1559Protocol": {
+      "suggestBaseFee": "15000000000",
+      "baseFee": "14500000000",
+      "proposePriorityFee": "1500000000",
+      "safePriorityFee": "1000000000",
+      "fastPriorityFee": "2000000000"
+    }
+  }]
+}
+```
+
+### Legacy Chain (No EIP-1559)
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "normal": "5000000000",
+    "min": "4000000000",
+    "max": "10000000000",
+    "supporteip1559": false
+  }]
+}
+```
+
+### Solana
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "normal": "5000",
+    "min": "0",
+    "max": "50000",
+    "supporteip1559": false,
+    "priorityFee": {
+      "proposePriorityFee": "5000",
+      "safePriorityFee": "1000",
+      "fastPriorityFee": "10000",
+      "extremePriorityFee": "50000"
+    }
+  }]
+}
+```
+
+## Use Cases
+
+### Calculate Transaction Cost
+
+```typescript
+async function estimateTransactionCost(chainIndex: string, gasLimit: string) {
+  const gasPriceResult = await client.dex.getGasPrice(chainIndex);
+  const data = gasPriceResult.data[0];
+
+  if (data.supporteip1559 && data.eip1559Protocol) {
+    // EIP-1559 transaction
+    const baseFee = BigInt(data.eip1559Protocol.baseFee);
+    const priorityFee = BigInt(data.eip1559Protocol.proposePriorityFee);
+    const maxFeePerGas = baseFee + priorityFee;
+    const totalCost = maxFeePerGas * BigInt(gasLimit);
+
+    return {
+      maxFeePerGas: maxFeePerGas.toString(),
+      maxPriorityFeePerGas: priorityFee.toString(),
+      estimatedCost: totalCost.toString()
+    };
+  } else {
+    // Legacy transaction
+    const gasPrice = BigInt(data.normal);
+    const totalCost = gasPrice * BigInt(gasLimit);
+
+    return {
+      gasPrice: gasPrice.toString(),
+      estimatedCost: totalCost.toString()
+    };
+  }
+}
+
+const cost = await estimateTransactionCost('1', '200000');
+console.log('Estimated cost (wei):', cost.estimatedCost);
+```
+
+### Gas Price Strategy Selector
+
+```typescript
+type GasStrategy = 'safe' | 'normal' | 'fast';
+
+async function getGasPriceForStrategy(
+  chainIndex: string,
+  strategy: GasStrategy
+) {
+  const gasPriceResult = await client.dex.getGasPrice(chainIndex);
+  const data = gasPriceResult.data[0];
+
+  if (data.supporteip1559 && data.eip1559Protocol) {
+    const baseFee = BigInt(data.eip1559Protocol.baseFee);
+    let priorityFee: bigint;
+
+    switch (strategy) {
+      case 'safe':
+        priorityFee = BigInt(data.eip1559Protocol.safePriorityFee);
+        break;
+      case 'fast':
+        priorityFee = BigInt(data.eip1559Protocol.fastPriorityFee);
+        break;
+      default:
+        priorityFee = BigInt(data.eip1559Protocol.proposePriorityFee);
+    }
+
+    return {
+      maxFeePerGas: (baseFee + priorityFee).toString(),
+      maxPriorityFeePerGas: priorityFee.toString()
+    };
+  } else {
+    // Legacy chains - use multiplier for strategy
+    const basePrice = BigInt(data.normal);
+    const multiplier = strategy === 'fast' ? 120n : strategy === 'safe' ? 80n : 100n;
+    const adjustedPrice = (basePrice * multiplier) / 100n;
+
+    return {
+      gasPrice: adjustedPrice.toString()
+    };
+  }
+}
+
+const fastGas = await getGasPriceForStrategy('1', 'fast');
+console.log('Fast gas settings:', fastGas);
+```
+
+### Real-time Gas Monitoring
+
+```typescript
+async function monitorGasPrices(chainIndex: string, intervalMs: number = 15000) {
+  setInterval(async () => {
+    const result = await client.dex.getGasPrice(chainIndex);
+    const data = result.data[0];
+
+    if (data.supporteip1559 && data.eip1559Protocol) {
+      const baseFee = parseFloat(data.eip1559Protocol.baseFee) / 1e9; // Convert to Gwei
+      const priorityFee = parseFloat(data.eip1559Protocol.proposePriorityFee) / 1e9;
+
+      console.log(`[${new Date().toISOString()}] Gas: ${baseFee.toFixed(2)} + ${priorityFee.toFixed(2)} Gwei`);
+    } else {
+      const gasPrice = parseFloat(data.normal) / 1e9;
+      console.log(`[${new Date().toISOString()}] Gas: ${gasPrice.toFixed(2)} Gwei`);
+    }
+  }, intervalMs);
+}
+
+monitorGasPrices('1');
+```
+
+### Gas Price Alert
+
+```typescript
+async function waitForLowGas(
+  chainIndex: string,
+  maxGweiThreshold: number
+): Promise<void> {
+  console.log(`Waiting for gas below ${maxGweiThreshold} Gwei...`);
+
+  while (true) {
+    const result = await client.dex.getGasPrice(chainIndex);
+    const data = result.data[0];
+
+    let currentGwei: number;
+    if (data.supporteip1559 && data.eip1559Protocol) {
+      const baseFee = parseFloat(data.eip1559Protocol.baseFee);
+      const priorityFee = parseFloat(data.eip1559Protocol.proposePriorityFee);
+      currentGwei = (baseFee + priorityFee) / 1e9;
+    } else {
+      currentGwei = parseFloat(data.normal) / 1e9;
+    }
+
+    console.log(`Current gas: ${currentGwei.toFixed(2)} Gwei`);
+
+    if (currentGwei <= maxGweiThreshold) {
+      console.log('Gas price acceptable!');
+      break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30s
+  }
+}
+
+await waitForLowGas('1', 20);
+```
+
+## Integration with Swaps
+
+```typescript
+// Get current gas price
+const gasPrice = await client.dex.getGasPrice('1');
+const data = gasPrice.data[0];
+
+// Use appropriate gas level in swap
+const swap = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  gasLevel: 'medium' // 'low', 'medium', or 'high'
+});
+```

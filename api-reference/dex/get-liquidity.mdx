@@ -1,0 +1,223 @@
+---
+title: "Get Liquidity"
+description: "Get available liquidity sources (DEXs) for a specific chain"
+---
+
+## Method
+
+```typescript
+async getLiquidity(chainIndex: string): Promise<APIResponse<LiquidityData>>
+```
+
+Retrieves information about available decentralized exchanges (liquidity sources) for a specific blockchain network.
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier (e.g., "1" for Ethereum, "501" for Solana, "137" for Polygon)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="LiquidityData[]">
+  Array of liquidity source information
+
+  <Expandable title="LiquidityData properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the DEX
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      DEX name
+    </ResponseField>
+
+    <ResponseField name="logo" type="string">
+      URL to DEX logo image
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get all DEXs on Ethereum
+const liquidity = await client.dex.getLiquidity('1');
+
+console.log(`Found ${liquidity.data.length} liquidity sources`);
+
+liquidity.data.forEach(dex => {
+  console.log(`${dex.name} (${dex.id})`);
+});
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "id": "uniswap_v3",
+      "name": "Uniswap V3",
+      "logo": "https://static.okx.com/cdn/dex/logo/uniswap.png"
+    },
+    {
+      "id": "sushiswap",
+      "name": "SushiSwap",
+      "logo": "https://static.okx.com/cdn/dex/logo/sushiswap.png"
+    },
+    {
+      "id": "curve",
+      "name": "Curve Finance",
+      "logo": "https://static.okx.com/cdn/dex/logo/curve.png"
+    },
+    {
+      "id": "balancer_v2",
+      "name": "Balancer V2",
+      "logo": "https://static.okx.com/cdn/dex/logo/balancer.png"
+    }
+  ]
+}
+```
+
+## Use Cases
+
+### Filter Swaps by DEX
+
+Use the DEX IDs to route swaps through specific liquidity sources:
+
+```typescript
+// Get available DEXs
+const liquidity = await client.dex.getLiquidity('1');
+
+// Find Uniswap V3
+const uniswapV3 = liquidity.data.find(dex => dex.name.includes('Uniswap V3'));
+
+// Execute swap only through Uniswap V3
+if (uniswapV3) {
+  const swap = await client.dex.getSwapData({
+    chainIndex: '1',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    amount: '1000000000000000000',
+    slippagePercent: '0.005',
+    dexIds: uniswapV3.id // Route only through Uniswap V3
+  });
+}
+```
+
+### Multi-DEX Routing
+
+```typescript
+const liquidity = await client.dex.getLiquidity('1');
+
+// Route through multiple specific DEXs
+const preferredDexes = ['uniswap_v3', 'sushiswap', 'curve'];
+const availableDexes = liquidity.data
+  .filter(dex => preferredDexes.includes(dex.id))
+  .map(dex => dex.id)
+  .join(',');
+
+const swap = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005',
+  dexIds: availableDexes
+});
+```
+
+### DEX Selector UI
+
+```typescript
+const liquidity = await client.dex.getLiquidity('1');
+
+// Build DEX selector with logos
+const dexOptions = liquidity.data.map(dex => ({
+  label: dex.name,
+  value: dex.id,
+  icon: dex.logo
+}));
+
+// Display in UI
+function DexSelector({ dexOptions, onSelect }) {
+  return (
+    <select onChange={(e) => onSelect(e.target.value)}>
+      <option value="">All DEXs (Best Price)</option>
+      {dexOptions.map(dex => (
+        <option key={dex.value} value={dex.value}>
+          {dex.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+## Chain-Specific DEXs
+
+### Ethereum (chainIndex: "1")
+- Uniswap V2/V3
+- SushiSwap
+- Curve Finance
+- Balancer V2
+- 1inch
+
+### Solana (chainIndex: "501")
+- Raydium
+- Orca
+- Jupiter
+- Serum
+
+### Polygon (chainIndex: "137")
+- QuickSwap
+- SushiSwap
+- Uniswap V3
+- Balancer
+
+### BSC (chainIndex: "56")
+- PancakeSwap
+- Biswap
+- ApeSwap
+
+## Aggregator Benefits
+
+When not specifying `dexIds`, the OKX DEX aggregator:
+- Automatically splits orders across multiple DEXs
+- Finds the best price by comparing all liquidity sources
+- Optimizes for minimal slippage and price impact
+- Reduces gas costs through efficient routing
+
+```typescript
+// Let the aggregator find the best route across all DEXs
+const swap = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.005'
+  // No dexIds = use all available DEXs
+});
+
+// Check which DEXs were used
+console.log('Route:', swap.data[0].routerResult.dexRouterList);
+```

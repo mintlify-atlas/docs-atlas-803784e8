@@ -1,0 +1,374 @@
+---
+title: Authentication
+description: Learn how to securely configure OKX API credentials and environment variables
+---
+
+## Overview
+
+The OKX DEX SDK requires API credentials to authenticate requests. This guide covers how to obtain, configure, and securely manage your credentials.
+
+## Required Credentials
+
+Four authentication parameters are required to use the SDK:
+
+| Parameter | Environment Variable | Description |
+|-----------|---------------------|-------------|
+| API Key | `OKX_API_KEY` | Your OKX API key identifier |
+| Secret Key | `OKX_SECRET_KEY` | Secret key for signing requests |
+| API Passphrase | `OKX_API_PASSPHRASE` | Passphrase set during API key creation |
+| Project ID | `OKX_PROJECT_ID` | Your project identifier |
+
+<Warning>
+All four credentials are mandatory. The SDK will fail to initialize without them.
+</Warning>
+
+## Obtaining API Credentials
+
+To get your OKX API credentials:
+
+1. Log in to your OKX account
+2. Navigate to **API Management**
+3. Create a new API key
+4. Set a passphrase (you'll need this later)
+5. Save your API Key, Secret Key, and Passphrase securely
+6. Note your Project ID from the project settings
+
+<Note>
+The Secret Key is only shown once during creation. Store it securely - you cannot retrieve it later.
+</Note>
+
+## Environment Configuration
+
+### Setting Up .env File
+
+Create a `.env` file in your project root:
+
+```bash
+# OKX API Credentials (Required)
+OKX_API_KEY=your_api_key_here
+OKX_SECRET_KEY=your_secret_key_here
+OKX_API_PASSPHRASE=your_passphrase_here
+OKX_PROJECT_ID=your_project_id_here
+
+# EVM Configuration (for Ethereum, Base, Polygon, etc.)
+EVM_WALLET_ADDRESS=0x...
+EVM_PRIVATE_KEY=0x...
+EVM_RPC_URL=https://mainnet.base.org
+
+# Solana Configuration
+SOLANA_WALLET_ADDRESS=...
+SOLANA_PRIVATE_KEY=...
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+WS_ENDPOINT=wss://api.mainnet-beta.solana.com
+
+# Sui Configuration
+SUI_WALLET_ADDRESS=0x...
+SUI_PRIVATE_KEY=...
+SUI_RPC_URL=https://sui-mainnet.blockvision.org
+```
+
+<Tip>
+The SDK repository includes a `.env.example` file at the root level. Copy it to create your own:
+```bash
+cp .env.example .env
+```
+</Tip>
+
+### Loading Environment Variables
+
+Use `dotenv` to load your environment variables:
+
+```typescript
+import 'dotenv/config';
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+});
+```
+
+## Request Signing
+
+The SDK automatically handles request signing using HMAC-SHA256. Here's how it works:
+
+### Authentication Headers
+
+Every API request includes these headers:
+
+```typescript
+{
+  "Content-Type": "application/json",
+  "OK-ACCESS-KEY": "your_api_key",
+  "OK-ACCESS-SIGN": "base64_encoded_signature",
+  "OK-ACCESS-TIMESTAMP": "2026-03-04T12:00:00.000Z",
+  "OK-ACCESS-PASSPHRASE": "your_passphrase",
+  "OK-ACCESS-PROJECT": "your_project_id"
+}
+```
+
+### Signature Generation
+
+The signature is created by:
+
+1. Concatenating: `timestamp + method + path + queryString`
+2. Computing HMAC-SHA256 with your secret key
+3. Base64 encoding the result
+
+```typescript
+// Example signature generation (handled automatically by SDK)
+const stringToSign = timestamp + method + path + queryString;
+const signature = CryptoJS.enc.Base64.stringify(
+  CryptoJS.HmacSHA256(stringToSign, secretKey)
+);
+```
+
+<Note>
+Signature logic is implemented in `/src/okx/core/http-client.ts:34-52`. You don't need to implement this yourself.
+</Note>
+
+## Security Best Practices
+
+### Never Commit Credentials
+
+<Warning>
+Never commit your `.env` file or expose credentials in source code.
+</Warning>
+
+Add `.env` to your `.gitignore`:
+
+```bash
+# .gitignore
+.env
+.env.local
+.env.*.local
+```
+
+### Use Environment-Specific Files
+
+For different environments:
+
+```bash
+.env.development   # Development credentials
+.env.staging       # Staging credentials  
+.env.production    # Production credentials
+```
+
+Load the appropriate file based on your environment:
+
+```typescript
+import { config } from 'dotenv';
+
+config({ path: `.env.${process.env.NODE_ENV}` });
+```
+
+### Rotate Credentials Regularly
+
+<Steps>
+  <Step title="Create new API key">
+    Generate a new API key in OKX dashboard
+  </Step>
+  <Step title="Update environment">
+    Update your `.env` file with new credentials
+  </Step>
+  <Step title="Test thoroughly">
+    Verify the new credentials work correctly
+  </Step>
+  <Step title="Revoke old key">
+    Delete the old API key from OKX dashboard
+  </Step>
+</Steps>
+
+### Restrict API Permissions
+
+When creating API keys:
+
+- Enable only the permissions you need
+- Use IP whitelist restrictions if possible
+- Set withdrawal permissions to "No Withdrawal"
+- Enable "Trade" permission for DEX operations
+
+### Use Secrets Management
+
+For production deployments:
+
+<Tabs>
+  <Tab title="AWS Secrets Manager">
+    ```typescript
+    import { SecretsManager } from '@aws-sdk/client-secrets-manager';
+    
+    const client = new SecretsManager({ region: 'us-east-1' });
+    const secret = await client.getSecretValue({ SecretId: 'okx/api' });
+    const credentials = JSON.parse(secret.SecretString!);
+    
+    const dexClient = new OKXDexClient({
+      apiKey: credentials.apiKey,
+      secretKey: credentials.secretKey,
+      apiPassphrase: credentials.apiPassphrase,
+      projectId: credentials.projectId,
+    });
+    ```
+  </Tab>
+  <Tab title="Google Secret Manager">
+    ```typescript
+    import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+    
+    const client = new SecretManagerServiceClient();
+    const [version] = await client.accessSecretVersion({
+      name: 'projects/my-project/secrets/okx-api/versions/latest',
+    });
+    
+    const credentials = JSON.parse(version.payload.data.toString());
+    
+    const dexClient = new OKXDexClient({
+      apiKey: credentials.apiKey,
+      secretKey: credentials.secretKey,
+      apiPassphrase: credentials.apiPassphrase,
+      projectId: credentials.projectId,
+    });
+    ```
+  </Tab>
+  <Tab title="Azure Key Vault">
+    ```typescript
+    import { SecretClient } from '@azure/keyvault-secrets';
+    import { DefaultAzureCredential } from '@azure/identity';
+    
+    const credential = new DefaultAzureCredential();
+    const vaultUrl = 'https://my-vault.vault.azure.net';
+    const client = new SecretClient(vaultUrl, credential);
+    
+    const apiKey = await client.getSecret('okx-api-key');
+    const secretKey = await client.getSecret('okx-secret-key');
+    const passphrase = await client.getSecret('okx-passphrase');
+    const projectId = await client.getSecret('okx-project-id');
+    
+    const dexClient = new OKXDexClient({
+      apiKey: apiKey.value!,
+      secretKey: secretKey.value!,
+      apiPassphrase: passphrase.value!,
+      projectId: projectId.value!,
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Wallet Private Keys
+
+In addition to OKX API credentials, you need blockchain wallet private keys for executing transactions.
+
+### EVM Private Keys
+
+```bash
+# In .env file
+EVM_PRIVATE_KEY=0x1234567890abcdef...  # Hex format with 0x prefix
+```
+
+<Warning>
+EVM private keys must be 64 hexadecimal characters (32 bytes) prefixed with `0x`.
+</Warning>
+
+### Solana Private Keys
+
+```bash
+# In .env file
+SOLANA_PRIVATE_KEY=5Kb8kLf4...  # Base58 encoded
+```
+
+<Note>
+Solana private keys should be base58 encoded. The SDK uses `bs58.decode()` to convert them to keypairs at `/src/okx/core/wallet.ts:109-110`.
+</Note>
+
+### Sui Private Keys
+
+```bash
+# In .env file
+SUI_PRIVATE_KEY=suiprivkey1...  # Sui private key format
+```
+
+### Securing Private Keys
+
+<Accordion title="Hardware Wallet Integration">
+For production applications, consider integrating hardware wallets:
+
+- Implement custom wallet adapters using the `EVMWallet` or `Wallet` interfaces
+- Use libraries like `@ledgerhq/hw-app-eth` for Ledger
+- Use WalletConnect for broader wallet support
+
+Example custom wallet adapter:
+
+```typescript
+import { EVMWallet } from '@okx-dex/okx-dex-sdk/core/evm-wallet';
+
+class LedgerWallet implements EVMWallet {
+  readonly address: string;
+  readonly provider: ethers.Provider;
+  
+  async signTransaction(tx: TransactionRequest): Promise<string> {
+    // Implement Ledger signing
+  }
+  
+  // ... other methods
+}
+```
+</Accordion>
+
+<Accordion title="Key Derivation">
+For managing multiple wallets, use HD wallet derivation:
+
+```typescript
+import { ethers } from 'ethers';
+
+const mnemonic = process.env.MNEMONIC!;
+const hdNode = ethers.HDNodeWallet.fromPhrase(mnemonic);
+
+// Derive different accounts
+const account0 = hdNode.derivePath("m/44'/60'/0'/0/0");
+const account1 = hdNode.derivePath("m/44'/60'/0'/0/1");
+```
+
+<Warning>
+Store your mnemonic phrase even more securely than individual private keys - it controls all derived accounts.
+</Warning>
+</Accordion>
+
+## Troubleshooting
+
+### Invalid Signature Errors
+
+**Problem**: `API Error: Invalid signature`
+
+**Solutions**:
+- Verify your `secretKey` is correct
+- Check that your system time is synchronized (NTP)
+- Ensure no extra whitespace in credentials
+
+### Invalid API Key
+
+**Problem**: `API Error: Invalid API key`
+
+**Solutions**:
+- Confirm `apiKey` matches the OKX dashboard
+- Verify the API key is active (not expired or revoked)
+- Check API key permissions include DEX access
+
+### Passphrase Mismatch
+
+**Problem**: `API Error: Invalid passphrase`
+
+**Solutions**:
+- Re-enter your passphrase carefully
+- Check for special characters that may need escaping
+- Verify no trailing spaces in `.env` file
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Client Initialization" icon="plug" href="/core-concepts/client-initialization">
+    Initialize the OKX DEX client with your credentials
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/core-concepts/error-handling">
+    Handle authentication errors properly
+  </Card>
+</CardGroup>

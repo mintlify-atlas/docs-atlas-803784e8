@@ -1,0 +1,252 @@
+---
+title: 'OKXDexClient'
+description: 'Main client class for interacting with OKX DEX and Bridge APIs'
+---
+
+## Overview
+
+The `OKXDexClient` class is the primary entry point for the OKX DEX SDK. It handles authentication, configuration, and provides access to DEX and Bridge APIs.
+
+## Constructor
+
+```typescript
+constructor(config: OKXConfig)
+```
+
+Creates a new instance of the OKX DEX client with the provided configuration.
+
+### Configuration Parameters
+
+<ParamField path="apiKey" type="string" required>
+  Your OKX API key for authentication
+</ParamField>
+
+<ParamField path="secretKey" type="string" required>
+  Your OKX secret key for signing requests
+</ParamField>
+
+<ParamField path="apiPassphrase" type="string" required>
+  Your OKX API passphrase for authentication
+</ParamField>
+
+<ParamField path="projectId" type="string" required>
+  Your OKX project ID
+</ParamField>
+
+<ParamField path="baseUrl" type="string" default="https://web3.okx.com">
+  Base URL for OKX API endpoints
+</ParamField>
+
+<ParamField path="timeout" type="number" default="30000">
+  Request timeout in milliseconds
+</ParamField>
+
+<ParamField path="maxRetries" type="number" default="3">
+  Maximum number of retry attempts for failed requests
+</ParamField>
+
+<ParamField path="networks" type="NetworkConfigs">
+  Chain-specific configuration settings. See [NetworkConfigs](#networkconfigs) below.
+</ParamField>
+
+<ParamField path="solana" type="SolanaConfig">
+  Solana-specific configuration. See [SolanaConfig](#solanaconfig) below.
+</ParamField>
+
+<ParamField path="sui" type="SuiConfig">
+  Sui-specific configuration. See [SuiConfig](#suiconfig) below.
+</ParamField>
+
+<ParamField path="evm" type="EVMConfig">
+  EVM-specific configuration. See [EVMConfig](#evmconfig) below.
+</ParamField>
+
+## Properties
+
+<ParamField path="dex" type="DexAPI">
+  Instance of DexAPI for performing DEX operations like swaps, quotes, and approvals
+</ParamField>
+
+<ParamField path="bridge" type="BridgeAPI">
+  Instance of BridgeAPI for cross-chain bridge operations
+</ParamField>
+
+## Type Definitions
+
+### NetworkConfigs
+
+```typescript
+interface NetworkConfigs {
+  [chainIndex: string]: ChainConfig;
+}
+```
+
+Configuration object mapping chain indices to chain-specific settings.
+
+### ChainConfig
+
+<ParamField path="id" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="explorer" type="string" required>
+  Block explorer URL for the chain
+</ParamField>
+
+<ParamField path="defaultSlippage" type="string" required>
+  Default slippage tolerance for swaps on this chain
+</ParamField>
+
+<ParamField path="maxSlippage" type="string" required>
+  Maximum allowed slippage tolerance
+</ParamField>
+
+<ParamField path="computeUnits" type="number">
+  Compute units for transaction execution (Solana)
+</ParamField>
+
+<ParamField path="confirmationTimeout" type="number">
+  Timeout for transaction confirmation in milliseconds
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  Maximum retry attempts for chain-specific operations
+</ParamField>
+
+<ParamField path="dexContractAddress" type="string">
+  DEX contract address for the chain
+</ParamField>
+
+### SolanaConfig
+
+<ParamField path="wallet" type="Wallet" required>
+  Solana wallet instance for signing transactions
+</ParamField>
+
+<ParamField path="computeUnits" type="number">
+  Compute units allocated for Solana transactions
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  Maximum retry attempts for Solana operations
+</ParamField>
+
+### SuiConfig
+
+<ParamField path="privateKey" type="string" required>
+  Private key for Sui wallet
+</ParamField>
+
+<ParamField path="walletAddress" type="string" required>
+  Sui wallet address
+</ParamField>
+
+<ParamField path="connection" type="object">
+  Sui network connection settings
+  
+  <ParamField path="connection.rpcUrl" type="string" required>
+    RPC endpoint URL for Sui network
+  </ParamField>
+  
+  <ParamField path="connection.wsEndpoint" type="string">
+    WebSocket endpoint for real-time updates
+  </ParamField>
+</ParamField>
+
+### EVMConfig
+
+<ParamField path="wallet" type="EVMWallet">
+  EVM wallet instance for signing transactions on EVM-compatible chains
+</ParamField>
+
+## Examples
+
+### Basic Initialization
+
+```typescript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Access DEX API
+const quote = await client.dex.getQuote({
+  chainIndex: '1',
+  fromTokenAddress: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  toTokenAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  amount: '1000000000000000000',
+  slippagePercent: '0.5'
+});
+
+// Access Bridge API
+const bridgeQuote = await client.bridge.getQuote({
+  fromChainIndex: '1',
+  toChainIndex: '56',
+  fromTokenAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  toTokenAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+  amount: '1000000'
+});
+```
+
+### Advanced Configuration
+
+```typescript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+import { Keypair } from '@solana/web3.js';
+
+const solanaKeypair = Keypair.fromSecretKey(
+  new Uint8Array([/* your secret key */])
+);
+
+const client = new OKXDexClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  timeout: 60000,
+  maxRetries: 5,
+  solana: {
+    wallet: {
+      getAddress: () => solanaKeypair.publicKey.toBase58(),
+      signTransaction: async (tx) => {
+        tx.sign(solanaKeypair);
+        return tx;
+      }
+    },
+    computeUnits: 200000,
+    maxRetries: 3
+  },
+  networks: {
+    '501': {
+      id: 'solana',
+      explorer: 'https://solscan.io',
+      defaultSlippage: '0.5',
+      maxSlippage: '5.0',
+      computeUnits: 200000,
+      confirmationTimeout: 60000
+    }
+  }
+});
+```
+
+### Custom Base URL
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id',
+  baseUrl: 'https://custom-proxy.example.com'
+});
+```
+
+## See Also
+
+- [DexAPI](/api-reference/dex/overview) - DEX operations and methods
+- [BridgeAPI](/api-reference/bridge/overview) - Cross-chain bridge operations
+- [Authentication](/guides/authentication) - Setting up API credentials

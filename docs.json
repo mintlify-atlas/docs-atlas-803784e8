@@ -1,122 +1,118 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "OKX DEX SDK",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#000000",
+    "light": "#3B82F6",
+    "dark": "#60A5FA"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/okx/okx-dex-sdk"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/okx/okx-dex-sdk"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core-concepts/client-initialization",
+              "core-concepts/authentication",
+              "core-concepts/supported-chains",
+              "core-concepts/error-handling"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/evm-swaps",
+              "guides/solana-swaps",
+              "guides/sui-swaps",
+              "guides/ton-swaps",
+              "guides/tron-swaps",
+              "guides/cross-chain-bridging",
+              "guides/token-approvals",
+              "guides/gas-estimation",
+              "guides/transaction-broadcasting",
+              "guides/order-tracking"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Advanced Features",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "advanced/transaction-simulation",
+              "advanced/mev-protection",
+              "advanced/custom-routes",
+              "advanced/slippage-protection"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Client",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/client/okxdexclient"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "DEX API",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/dex/get-quote",
+              "api-reference/dex/get-swap-data",
+              "api-reference/dex/execute-swap",
+              "api-reference/dex/execute-approval",
+              "api-reference/dex/get-tokens",
+              "api-reference/dex/get-liquidity",
+              "api-reference/dex/get-chain-data",
+              "api-reference/dex/get-gas-limit",
+              "api-reference/dex/get-gas-price",
+              "api-reference/dex/broadcast-transaction",
+              "api-reference/dex/simulate-transaction",
+              "api-reference/dex/get-transaction-orders"
+            ]
+          },
+          {
+            "group": "Bridge API",
+            "pages": [
+              "api-reference/bridge/get-cross-chain-quote",
+              "api-reference/bridge/build-cross-chain-swap",
+              "api-reference/bridge/get-supported-tokens",
+              "api-reference/bridge/get-supported-bridges",
+              "api-reference/bridge/get-bridge-token-pairs"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api-reference/types/config-types",
+              "api-reference/types/swap-types",
+              "api-reference/types/quote-types",
+              "api-reference/types/transaction-types"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

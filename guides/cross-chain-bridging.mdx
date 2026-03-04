@@ -1,0 +1,306 @@
+---
+title: 'Cross-Chain Bridging'
+description: 'Learn how to bridge tokens between different blockchain networks'
+---
+
+## Overview
+
+The OKX DEX SDK provides cross-chain bridging capabilities through the `BridgeAPI`, allowing you to transfer tokens between different blockchain networks seamlessly.
+
+## Prerequisites
+
+Before using cross-chain bridging, make sure you have:
+
+- An initialized `OKXDexClient` instance
+- Valid API credentials
+- Understanding of source and destination chains
+
+## Getting Cross-Chain Quote
+
+Before executing a cross-chain swap, get a quote to see the expected output and fees.
+
+<Steps>
+  <Step title="Initialize the Client">
+    ```typescript
+    import { OKXDexClient } from '@okxweb3/dex-sdk';
+
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!
+    });
+    ```
+  </Step>
+
+  <Step title="Get Cross-Chain Quote">
+    ```typescript
+    const quote = await client.bridge.getCrossChainQuote({
+      fromChainIndex: '1',      // Ethereum
+      toChainIndex: '56',       // BSC
+      fromChainId: '1',
+      toChainId: '56',
+      fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC on Ethereum
+      toTokenAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',   // USDC on BSC
+      amount: '1000000000',      // 1000 USDC (6 decimals)
+      slippagePercent: '0.01'    // 1% slippage
+    });
+
+    console.log('Expected output:', quote.data[0].toTokenAmount);
+    console.log('Price impact:', quote.data[0].priceImpactPercent);
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  Slippage must be between 0.002 (0.2%) and 0.5 (50%). The SDK will validate this range automatically.
+</Note>
+
+## Building Cross-Chain Swap Transaction
+
+Once you have a quote, build the actual swap transaction.
+
+```typescript
+const swapTx = await client.bridge.buildCrossChainSwap({
+  // Quote parameters
+  fromChainIndex: '1',
+  toChainIndex: '56',
+  fromChainId: '1',
+  toChainId: '56',
+  fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  toTokenAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+  amount: '1000000000',
+  slippagePercent: '0.01',
+  
+  // Additional parameters
+  userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+  receiveAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb', // Optional: different receiving address
+  referrerAddress: '0x...',   // Optional: referrer address
+  feePercent: '0.001'          // Optional: 0.1% fee
+});
+
+console.log('Transaction data:', swapTx.data[0].tx);
+```
+
+<Warning>
+  The `userWalletAddress` parameter is required when building a cross-chain swap transaction.
+</Warning>
+
+## Advanced Options
+
+### Bridge Selection
+
+Control which bridges to use or exclude:
+
+```typescript
+const quote = await client.bridge.getCrossChainQuote({
+  // ... other parameters
+  
+  // Use specific bridges only
+  dexIds: 'stargate,celer',
+  
+  // OR allow specific bridges
+  allowBridge: 'stargate',
+  
+  // OR exclude specific bridges
+  denyBridge: 'multichain'
+});
+```
+
+### Price Impact Protection
+
+Protect against excessive price impact:
+
+```typescript
+const quote = await client.bridge.getCrossChainQuote({
+  // ... other parameters
+  priceImpactProtectionPercentage: '0.05' // Fail if price impact exceeds 5%
+});
+```
+
+### Bridge-Only Mode
+
+Force using only bridges without DEX aggregation:
+
+```typescript
+const swapTx = await client.bridge.buildCrossChainSwap({
+  // ... other parameters
+  onlyBridge: 'true'
+});
+```
+
+## Checking Supported Chains and Tokens
+
+### Get Supported Tokens
+
+```typescript
+const tokens = await client.bridge.getSupportedTokens('1'); // Ethereum
+console.log('Supported tokens:', tokens.data);
+```
+
+### Get Supported Bridges
+
+```typescript
+const bridges = await client.bridge.getSupportedBridges('1');
+console.log('Available bridges:', bridges.data);
+```
+
+### Get Bridge Token Pairs
+
+```typescript
+const pairs = await client.bridge.getBridgeTokenPairs('1');
+console.log('Available token pairs:', pairs.data);
+```
+
+## Complete Example
+
+<CodeGroup>
+```typescript TypeScript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+async function bridgeTokens() {
+  try {
+    // 1. Check supported tokens
+    const supportedTokens = await client.bridge.getSupportedTokens('1');
+    console.log('Supported tokens on Ethereum:', supportedTokens.data);
+
+    // 2. Get quote
+    const quote = await client.bridge.getCrossChainQuote({
+      fromChainIndex: '1',
+      toChainIndex: '56',
+      fromChainId: '1',
+      toChainId: '56',
+      fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      toTokenAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+      amount: '1000000000',
+      slippagePercent: '0.01',
+      priceImpactProtectionPercentage: '0.05'
+    });
+
+    console.log('Quote received:');
+    console.log('- Output amount:', quote.data[0].toTokenAmount);
+    console.log('- Price impact:', quote.data[0].priceImpactPercent);
+
+    // 3. Build transaction
+    const swapTx = await client.bridge.buildCrossChainSwap({
+      fromChainIndex: '1',
+      toChainIndex: '56',
+      fromChainId: '1',
+      toChainId: '56',
+      fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      toTokenAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+      amount: '1000000000',
+      slippagePercent: '0.01',
+      userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    });
+
+    console.log('Transaction built successfully');
+    console.log('Transaction data:', swapTx.data[0].tx);
+    
+    // 4. Sign and broadcast the transaction
+    // (Implementation depends on your wallet setup)
+    
+  } catch (error) {
+    console.error('Bridge error:', error);
+  }
+}
+
+bridgeTokens();
+```
+
+```javascript JavaScript
+const { OKXDexClient } = require('@okxweb3/dex-sdk');
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY,
+  secretKey: process.env.OKX_SECRET_KEY,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE,
+  projectId: process.env.OKX_PROJECT_ID
+});
+
+async function bridgeTokens() {
+  try {
+    // Get quote
+    const quote = await client.bridge.getCrossChainQuote({
+      fromChainIndex: '1',
+      toChainIndex: '56',
+      fromChainId: '1',
+      toChainId: '56',
+      fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      toTokenAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+      amount: '1000000000',
+      slippagePercent: '0.01'
+    });
+
+    console.log('Expected output:', quote.data[0].toTokenAmount);
+
+    // Build transaction
+    const swapTx = await client.bridge.buildCrossChainSwap({
+      fromChainIndex: '1',
+      toChainIndex: '56',
+      fromChainId: '1',
+      toChainId: '56',
+      fromTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      toTokenAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+      amount: '1000000000',
+      slippagePercent: '0.01',
+      userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    });
+
+    console.log('Transaction data:', swapTx.data[0].tx);
+  } catch (error) {
+    console.error('Bridge error:', error);
+  }
+}
+
+bridgeTokens();
+```
+</CodeGroup>
+
+## API Reference
+
+### getCrossChainQuote
+
+**Parameters:**
+- `fromChainIndex` - Source chain index
+- `toChainIndex` - Destination chain index
+- `fromChainId` - Source chain ID
+- `toChainId` - Destination chain ID
+- `fromTokenAddress` - Source token contract address
+- `toTokenAddress` - Destination token contract address
+- `amount` - Amount to bridge (in base units)
+- `slippagePercent` - Slippage tolerance (0.002 to 0.5)
+- `sort` (optional) - Sort order for routes
+- `dexIds` (optional) - Comma-separated list of DEX IDs
+- `allowBridge` (optional) - Allowed bridge protocols
+- `denyBridge` (optional) - Excluded bridge protocols
+- `priceImpactProtectionPercentage` (optional) - Maximum allowed price impact
+
+### buildCrossChainSwap
+
+**Parameters:**
+Inherits all parameters from `getCrossChainQuote`, plus:
+- `userWalletAddress` - User's wallet address (required)
+- `receiveAddress` (optional) - Different receiving address
+- `referrerAddress` (optional) - Referrer's address
+- `feePercent` (optional) - Additional fee percentage
+- `onlyBridge` (optional) - Use only bridges, no DEX aggregation
+- `memo` (optional) - Transaction memo
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transaction Broadcasting" icon="satellite-dish" href="/guides/transaction-broadcasting">
+    Learn how to broadcast cross-chain transactions
+  </Card>
+  <Card title="Order Tracking" icon="magnifying-glass" href="/guides/order-tracking">
+    Track your cross-chain swap status
+  </Card>
+</CardGroup>

@@ -1,0 +1,342 @@
+---
+title: Supported Chains
+description: Complete list of blockchain networks supported by the OKX DEX SDK
+---
+
+## Overview
+
+The OKX DEX SDK supports 26+ blockchain networks across EVM-compatible chains and non-EVM networks including Solana and Sui.
+
+## Supported Networks
+
+All chains are configured by default in the SDK at `/src/okx/api/dex.ts:51-254`.
+
+### Major EVM Chains
+
+| Chain | Chain ID | Explorer | Features |
+|-------|----------|----------|----------|
+| **Ethereum** | `1` | [OKX Explorer](https://web3.okx.com/explorer/ethereum/tx) | Swap, Quote, Approve, Broadcast |
+| **Base** | `8453` | [OKX Explorer](https://web3.okx.com/explorer/base/tx) | Swap, Quote, Approve, Broadcast |
+| **Polygon** | `137` | [OKX Explorer](https://web3.okx.com/explorer/polygon/tx) | Swap, Quote, Approve, Broadcast |
+| **Sonic** | `146` | [OKX Explorer](https://web3.okx.com/explorer/sonic/tx) | Swap, Quote, Approve, Broadcast |
+| **Avalanche C-Chain** | `43114` | [OKX Explorer](https://web3.okx.com/explorer/avax/tx) | Swap, Quote, Approve, Broadcast |
+| **BSC** | `56` | [OKX Explorer](https://web3.okx.com/explorer/bsc/tx) | Swap, Quote, Approve, Broadcast |
+| **Arbitrum** | `42161` | [OKX Explorer](https://web3.okx.com/explorer/arbitrum/tx) | Swap, Quote, Approve, Broadcast |
+| **Optimism** | `10` | [OKX Explorer](https://web3.okx.com/explorer/optimism/tx) | Swap, Quote, Approve, Broadcast |
+
+### Layer 2 & Scaling Solutions
+
+| Chain | Chain ID | Explorer | Features |
+|-------|----------|----------|----------|
+| **Polygon zkEVM** | `1101` | [OKX Explorer](https://web3.okx.com/explorer/polygon-zkevm/tx) | Swap, Quote, Approve, Broadcast |
+| **zkSync Era** | `324` | [OKX Explorer](https://web3.okx.com/explorer/zksync/tx) | Swap, Quote, Approve, Broadcast |
+| **Linea** | `59144` | [OKX Explorer](https://web3.okx.com/explorer/linea/tx) | Swap, Quote, Approve, Broadcast |
+| **Scroll** | `534352` | [OKX Explorer](https://web3.okx.com/explorer/scroll/tx) | Swap, Quote, Approve, Broadcast |
+| **Mantle** | `5000` | [OKX Explorer](https://web3.okx.com/explorer/mantle/tx) | Swap, Quote, Approve, Broadcast |
+| **Blast** | `81457` | [OKX Explorer](https://web3.okx.com/explorer/blast/tx) | Swap, Quote, Approve, Broadcast |
+| **X Layer** | `196` | [OKX Explorer](https://web3.okx.com/explorer/x-layer/tx) | Swap, Quote, Approve, Broadcast |
+
+### Other EVM Chains
+
+| Chain | Chain ID | Explorer | Features |
+|-------|----------|----------|----------|
+| **Fantom Opera** | `250` | [OKX Explorer](https://web3.okx.com/explorer/ftm/tx) | Swap, Quote, Approve, Broadcast |
+| **Gnosis** | `100` | [OKX Explorer](https://web3.okx.com/explorer/gnosis/tx) | Swap, Quote, Approve, Broadcast |
+| **Manta Pacific** | `169` | [OKX Explorer](https://web3.okx.com/explorer/manta/tx) | Swap, Quote, Approve, Broadcast |
+| **Metis** | `1088` | [OKX Explorer](https://web3.okx.com/explorer/metis/tx) | Swap, Quote, Approve, Broadcast |
+| **Cronos** | `25` | [Cronoscan](https://cronoscan.com/tx) | Swap, Quote, Approve, Broadcast |
+| **Conflux** | `1030` | [Conflux Scan](https://www.confluxscan.io/tx) | Swap, Quote, Approve, Broadcast |
+| **Zeta Chain** | `7000` | [Zeta Explorer](https://explorer.zetachain.com/tx) | Swap, Quote, Approve, Broadcast |
+| **OKT Chain** | `66` | [OKX Explorer](https://www.okx.com/web3/explorer/oktc/tx) | Swap, Quote, Approve, Broadcast |
+
+### Non-EVM Chains
+
+| Chain | Chain ID | Explorer | Features |
+|-------|----------|----------|----------|
+| **Solana** | `501` | [OKX Explorer](https://web3.okx.com/explorer/sol/tx) | Swap, Quote, Broadcast |
+| **Sui** | `784` | [OKX Explorer](https://web3.okx.com/explorer/sui/tx) | Swap, Quote, Broadcast |
+| **TON** | `607` | N/A | Quote only |
+| **TRON** | `195` | N/A | Quote only |
+
+<Note>
+Non-EVM chains like Solana and Sui don't require token approvals due to different transaction models.
+</Note>
+
+## Default Chain Configuration
+
+Each chain comes with pre-configured settings:
+
+```typescript
+{
+  id: "8453",                    // Chain identifier
+  explorer: "https://...",       // Block explorer URL
+  defaultSlippage: "0.005",      // 0.5% default slippage
+  maxSlippage: "1",              // 100% maximum slippage
+  confirmationTimeout: 60000,    // 60 seconds
+  maxRetries: 3                  // 3 retry attempts
+}
+```
+
+### Configuration Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Chain ID (matches public chain ID) |
+| `explorer` | `string` | Transaction explorer base URL |
+| `defaultSlippage` | `string` | Default slippage tolerance (0-1 range) |
+| `maxSlippage` | `string` | Maximum allowed slippage |
+| `confirmationTimeout` | `number` | Transaction confirmation timeout (ms) |
+| `maxRetries` | `number` | Max retry attempts for failed transactions |
+| `computeUnits` | `number` | Solana-specific: compute units (default 300000) |
+
+## Chain-Specific Examples
+
+### Ethereum Mainnet
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // ETH
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',   // USDC
+  amount: '1000000000000000000',  // 1 ETH
+  slippagePercent: '0.005'
+});
+```
+
+### Base Chain
+
+```typescript
+const swap = await client.dex.executeSwap({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // ETH
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',   // USDC
+  amount: '100000000000000000',   // 0.1 ETH
+  slippagePercent: '0.005',
+  userWalletAddress: evmWallet.address
+});
+```
+
+### Solana
+
+```typescript
+const swap = await client.dex.executeSwap({
+  chainIndex: '501',
+  fromTokenAddress: 'So11111111111111111111111111111111111111112',  // SOL
+  toTokenAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',    // USDC
+  amount: '1000000000',  // 1 SOL (9 decimals)
+  slippagePercent: '0.005',
+  userWalletAddress: solanaWallet.publicKey.toString()
+});
+```
+
+### Sui
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '784',
+  fromTokenAddress: '0x2::sui::SUI',  // Native SUI
+  toTokenAddress: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+  amount: '1000000000',  // 1 SUI (9 decimals)
+  slippagePercent: '0.005'
+});
+```
+
+## Checking Chain Support
+
+Get chain configuration and supported features:
+
+```typescript
+// Get chain information
+const chainData = await client.dex.getChainData('8453');
+
+console.log('Chain Name:', chainData.data[0].chainName);
+console.log('Router Address:', chainData.data[0].dexTokenApproveAddress);
+```
+
+### Response Structure
+
+```typescript
+{
+  code: "0",
+  msg: "",
+  data: [{
+    chainIndex: "8453",
+    chainName: "Base",
+    dexTokenApproveAddress: "0x..."  // Contract address for approvals
+  }]
+}
+```
+
+## Overriding Chain Configuration
+
+Customize settings for specific chains:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  networks: {
+    '8453': {  // Override Base configuration
+      id: '8453',
+      explorer: 'https://basescan.org/tx',
+      defaultSlippage: '0.01',        // 1% instead of 0.5%
+      maxSlippage: '0.05',            // 5% instead of 100%
+      confirmationTimeout: 120000,    // 2 minutes instead of 1
+      maxRetries: 5                   // 5 retries instead of 3
+    },
+    '501': {  // Override Solana configuration
+      id: '501',
+      explorer: 'https://solscan.io/tx',
+      defaultSlippage: '0.01',
+      maxSlippage: '0.05',
+      computeUnits: 500000,           // Increase compute units
+      confirmationTimeout: 90000,
+      maxRetries: 5
+    }
+  }
+});
+```
+
+<Warning>
+Custom network configurations merge with defaults. Ensure `id` matches the chain ID you're overriding.
+</Warning>
+
+## Getting Available Tokens
+
+Fetch all supported tokens for a specific chain:
+
+```typescript
+// Get tokens for Base chain
+const tokens = await client.dex.getTokens('8453');
+
+tokens.data.forEach(token => {
+  console.log(`${token.tokenSymbol}: ${token.tokenContractAddress}`);
+});
+```
+
+### Token Response Structure
+
+```typescript
+{
+  code: "0",
+  msg: "",
+  data: [{
+    tokenSymbol: "USDC",
+    tokenName: "USD Coin",
+    tokenContractAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    decimals: "6",
+    tokenLogoUrl: "https://..."
+  }]
+}
+```
+
+## Checking DEX Liquidity
+
+View available DEX sources for a chain:
+
+```typescript
+// Get liquidity sources for Ethereum
+const liquidity = await client.dex.getLiquidity('1');
+
+liquidity.data.forEach(dex => {
+  console.log(`${dex.name} (ID: ${dex.id})`);
+});
+```
+
+### Example Output
+
+```
+Uniswap V3 (ID: uniswap-v3)
+Curve (ID: curve)
+Balancer (ID: balancer)
+1inch (ID: 1inch)
+SushiSwap (ID: sushiswap)
+```
+
+## Chain Status & Monitoring
+
+<Accordion title="Checking Chain Health">
+Monitor chain status before executing trades:
+
+```typescript
+async function isChainHealthy(chainId: string): Promise<boolean> {
+  try {
+    const chainData = await client.dex.getChainData(chainId);
+    return chainData.code === '0' && chainData.data.length > 0;
+  } catch (error) {
+    console.error(`Chain ${chainId} health check failed:`, error);
+    return false;
+  }
+}
+
+// Use before trading
+if (await isChainHealthy('8453')) {
+  // Safe to proceed
+  const swap = await client.dex.executeSwap({ /* ... */ });
+}
+```
+</Accordion>
+
+<Accordion title="Multi-Chain Operations">
+Execute operations across multiple chains:
+
+```typescript
+const chains = ['1', '8453', '137', '42161'];  // Ethereum, Base, Polygon, Arbitrum
+
+const quotes = await Promise.all(
+  chains.map(chainId => 
+    client.dex.getQuote({
+      chainIndex: chainId,
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x...',  // USDC address varies by chain
+      amount: '1000000000000000000',
+      slippagePercent: '0.005'
+    })
+  )
+);
+
+quotes.forEach((quote, idx) => {
+  console.log(`Chain ${chains[idx]}: ${quote.data[0].toTokenAmount} USDC`);
+});
+```
+</Accordion>
+
+## Feature Availability
+
+### All EVM Chains Support
+
+- Token quotes via `getQuote()`
+- Token swaps via `executeSwap()`
+- Token approvals via `executeApproval()`
+- Transaction broadcasting via `broadcastTransaction()`
+- Gas estimation via `getGasLimit()` and `getGasPrice()`
+- Transaction simulation via `simulateTransaction()`
+
+### Solana & Sui Support
+
+- Token quotes via `getQuote()`
+- Token swaps via `executeSwap()`
+- Transaction broadcasting via `broadcastTransaction()`
+- **No approval required** (different transaction model)
+
+### TON & TRON Support
+
+- Token quotes via `getQuote()`
+- **Swap execution coming soon**
+
+<Note>
+For TON and TRON, currently only quote functionality is available. Full swap execution is under development.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Client Initialization" icon="plug" href="/core-concepts/client-initialization">
+    Set up the client for your target chains
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/core-concepts/error-handling">
+    Handle chain-specific errors properly
+  </Card>
+</CardGroup>

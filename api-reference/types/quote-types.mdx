@@ -1,0 +1,275 @@
+---
+title: "Quote Types"
+description: "Type definitions for price quotes and routing information"
+---
+
+## QuoteParams
+
+Parameters for requesting a swap quote.
+
+<ParamField path="chainIndex" type="string">
+  Chain identifier (e.g., "501" for Solana, "1" for Ethereum)
+</ParamField>
+
+<ParamField path="fromTokenAddress" type="string" required>
+  Contract address of the source token
+</ParamField>
+
+<ParamField path="toTokenAddress" type="string" required>
+  Contract address of the destination token
+</ParamField>
+
+<ParamField path="amount" type="string" required>
+  Amount to swap in the smallest unit (e.g., wei for ETH)
+</ParamField>
+
+<ParamField path="userWalletAddress" type="string">
+  User's wallet address
+</ParamField>
+
+<ParamField path="slippagePercent" type="string" required>
+  Slippage tolerance as a percentage (e.g., "0.5" for 0.5%)
+</ParamField>
+
+<ParamField path="dexIds" type="string">
+  Comma-separated list of DEX IDs to route through
+</ParamField>
+
+<ParamField path="directRoute" type="boolean">
+  Use direct routing without intermediate tokens
+</ParamField>
+
+<ParamField path="priceImpactProtectionPercent" type="string">
+  Maximum acceptable price impact percentage
+</ParamField>
+
+<ParamField path="feePercent" type="string">
+  Custom fee percentage for the swap
+</ParamField>
+
+```typescript
+interface QuoteParams extends BaseParams {
+  slippagePercent: string;
+}
+```
+
+## QuoteData
+
+Complete quote information including routing and pricing details.
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="contextSlot" type="number">
+  Context slot number (Solana-specific)
+</ParamField>
+
+<ParamField path="dexRouterList" type="DexRouter[]" required>
+  List of DEX routers used in the swap path
+</ParamField>
+
+<ParamField path="estimateGasFee" type="string" required>
+  Estimated gas fee for the transaction
+</ParamField>
+
+<ParamField path="fromToken" type="TokenInfo" required>
+  Source token information
+</ParamField>
+
+<ParamField path="toToken" type="TokenInfo" required>
+  Destination token information
+</ParamField>
+
+<ParamField path="fromTokenAmount" type="string" required>
+  Amount of source token to swap
+</ParamField>
+
+<ParamField path="toTokenAmount" type="string" required>
+  Expected amount of destination token to receive
+</ParamField>
+
+<ParamField path="priceImpactPercent" type="string" required>
+  Price impact as a percentage
+</ParamField>
+
+<ParamField path="router" type="string" required>
+  Router address or identifier
+</ParamField>
+
+<ParamField path="swapMode" type="string" required>
+  Swap mode (e.g., "exactIn", "exactOut")
+</ParamField>
+
+<ParamField path="tradeFee" type="string" required>
+  Trading fee amount
+</ParamField>
+
+<ParamField path="routerResult" type="RouterResult">
+  Detailed routing result
+</ParamField>
+
+<ParamField path="tx" type="TransactionData">
+  Transaction data for execution
+</ParamField>
+
+```typescript
+interface QuoteData {
+  chainIndex: string;
+  contextSlot?: number;
+  dexRouterList: DexRouter[];
+  estimateGasFee: string;
+  fromToken: TokenInfo;
+  toToken: TokenInfo;
+  fromTokenAmount: string;
+  toTokenAmount: string;
+  priceImpactPercent: string;
+  router: string;
+  swapMode: string;
+  tradeFee: string;
+  routerResult?: RouterResult;
+  tx?: TransactionData;
+}
+```
+
+## RouterResult
+
+Detailed routing information for a swap.
+
+<ParamField path="chainIndex" type="string" required>
+  Chain identifier
+</ParamField>
+
+<ParamField path="contextSlot" type="number">
+  Context slot number (Solana-specific)
+</ParamField>
+
+<ParamField path="dexRouterList" type="DexRouter[]" required>
+  List of DEX routers in the swap path
+</ParamField>
+
+<ParamField path="estimateGasFee" type="string" required>
+  Estimated gas fee
+</ParamField>
+
+<ParamField path="fromToken" type="TokenInfo" required>
+  Source token information
+</ParamField>
+
+<ParamField path="toToken" type="TokenInfo" required>
+  Destination token information
+</ParamField>
+
+<ParamField path="fromTokenAmount" type="string" required>
+  Source token amount
+</ParamField>
+
+<ParamField path="toTokenAmount" type="string" required>
+  Destination token amount
+</ParamField>
+
+<ParamField path="priceImpactPercent" type="string" required>
+  Price impact percentage
+</ParamField>
+
+<ParamField path="router" type="string" required>
+  Router address or identifier
+</ParamField>
+
+<ParamField path="swapMode" type="string" required>
+  Swap mode
+</ParamField>
+
+<ParamField path="tradeFee" type="string" required>
+  Trading fee
+</ParamField>
+
+```typescript
+interface RouterResult {
+  chainIndex: string;
+  contextSlot?: number;
+  dexRouterList: DexRouter[];
+  estimateGasFee: string;
+  fromToken: TokenInfo;
+  toToken: TokenInfo;
+  fromTokenAmount: string;
+  toTokenAmount: string;
+  priceImpactPercent: string;
+  router: string;
+  swapMode: string;
+  tradeFee: string;
+}
+```
+
+## DexRouter
+
+Information about a DEX router in the swap path.
+
+<ParamField path="dexProtocol" type="DexProtocol" required>
+  DEX protocol information
+</ParamField>
+
+<ParamField path="fromToken" type="TokenInfo" required>
+  Source token for this router hop
+</ParamField>
+
+<ParamField path="fromTokenIndex" type="string" required>
+  Index of the source token
+</ParamField>
+
+<ParamField path="toToken" type="TokenInfo" required>
+  Destination token for this router hop
+</ParamField>
+
+<ParamField path="toTokenIndex" type="string" required>
+  Index of the destination token
+</ParamField>
+
+```typescript
+interface DexRouter {
+  dexProtocol: DexProtocol;
+  fromToken: TokenInfo;
+  fromTokenIndex: string;
+  toToken: TokenInfo;
+  toTokenIndex: string;
+}
+```
+
+## TokenInfo
+
+Information about a token.
+
+<ParamField path="decimal" type="string" required>
+  Token decimals
+</ParamField>
+
+<ParamField path="isHoneyPot" type="boolean" required>
+  Whether the token is identified as a honeypot
+</ParamField>
+
+<ParamField path="taxRate" type="string" required>
+  Token tax rate percentage
+</ParamField>
+
+<ParamField path="tokenContractAddress" type="string" required>
+  Token contract address
+</ParamField>
+
+<ParamField path="tokenSymbol" type="string" required>
+  Token symbol
+</ParamField>
+
+<ParamField path="tokenUnitPrice" type="string" required>
+  Token unit price in USD
+</ParamField>
+
+```typescript
+interface TokenInfo {
+  decimal: string;
+  isHoneyPot: boolean;
+  taxRate: string;
+  tokenContractAddress: string;
+  tokenSymbol: string;
+  tokenUnitPrice: string;
+}
+```

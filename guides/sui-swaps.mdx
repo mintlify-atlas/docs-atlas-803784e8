@@ -1,0 +1,345 @@
+---
+title: 'Sui Swaps'
+description: 'Execute token swaps on the Sui blockchain'
+icon: 'water'
+---
+
+This guide shows you how to execute token swaps on Sui using the OKX DEX SDK. Sui uses a unique object-based data model that requires special wallet configuration.
+
+## Prerequisites
+
+- OKX API credentials
+- Sui wallet with a private key
+- SUI tokens for gas fees
+- Access to a Sui RPC endpoint
+
+## Setup
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install the required packages:
+    
+    ```bash
+    npm install @okx-dex/sdk dotenv
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    Set up your environment variables:
+    
+    ```bash
+    OKX_API_KEY=your_api_key
+    OKX_SECRET_KEY=your_secret_key
+    OKX_API_PASSPHRASE=your_passphrase
+    OKX_PROJECT_ID=your_project_id
+    
+    SUI_PRIVATE_KEY=your_wallet_private_key
+    SUI_WALLET_ADDRESS=your_wallet_address
+    ```
+  </Step>
+
+  <Step title="Initialize the Client">
+    Create the OKX client with Sui configuration:
+    
+    ```typescript
+    import { OKXDexClient } from '@okx-dex/sdk';
+    import dotenv from 'dotenv';
+    
+    dotenv.config();
+    
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      sui: {
+        privateKey: process.env.SUI_PRIVATE_KEY!,
+        walletAddress: process.env.SUI_WALLET_ADDRESS!,
+        connection: {
+          rpcUrl: 'https://sui-mainnet.blockvision.org'
+        }
+      }
+    });
+    ```
+    
+    <Note>
+      Unlike EVM chains, Sui requires both the private key and wallet address to be configured separately.
+    </Note>
+  </Step>
+</Steps>
+
+## Common Token Addresses
+
+Sui uses type identifiers for tokens:
+
+| Token | Address |
+|-------|----------|
+| SUI | `0x2::sui::SUI` |
+| USDC | `0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC` |
+
+## Getting a Quote
+
+Fetch a quote to preview swap details:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '784',  // Sui mainnet
+  fromTokenAddress: '0x2::sui::SUI',
+  toTokenAddress: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+  amount: '10000000000',  // 10 SUI (9 decimals)
+  slippagePercent: '0.1'
+});
+
+console.log('Quote:', JSON.stringify(quote, null, 2));
+```
+
+## Executing a Swap
+
+Execute a complete swap workflow:
+
+```typescript
+// Token addresses
+const TOKENS = {
+  SUI: "0x2::sui::SUI",
+  USDC: "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
+};
+
+// Amount to swap (human-readable)
+const amount = '1.5'; // 1.5 SUI
+
+// Step 1: Get token information from quote
+console.log('Getting token information...');
+const quote = await client.dex.getQuote({
+  chainIndex: '784',
+  fromTokenAddress: TOKENS.SUI,
+  toTokenAddress: TOKENS.USDC,
+  amount: '1000000',  // Small amount for quote
+  slippagePercent: '0.5'
+});
+
+const tokenInfo = {
+  fromToken: {
+    symbol: quote.data[0].fromToken.tokenSymbol,
+    decimals: parseInt(quote.data[0].fromToken.decimal),
+    price: quote.data[0].fromToken.tokenUnitPrice
+  },
+  toToken: {
+    symbol: quote.data[0].toToken.tokenSymbol,
+    decimals: parseInt(quote.data[0].toToken.decimal),
+    price: quote.data[0].toToken.tokenUnitPrice
+  }
+};
+
+// Step 2: Convert amount to base units
+const rawAmount = (
+  parseFloat(amount) * Math.pow(10, tokenInfo.fromToken.decimals)
+).toString();
+
+console.log('Swap Details:');
+console.log('--------------------');
+console.log(`From: ${tokenInfo.fromToken.symbol}`);
+console.log(`To: ${tokenInfo.toToken.symbol}`);
+console.log(`Amount: ${amount} ${tokenInfo.fromToken.symbol}`);
+console.log(`Amount in base units: ${rawAmount}`);
+
+// Step 3: Execute the swap
+console.log('\nExecuting swap...');
+const result = await client.dex.executeSwap({
+  chainIndex: '784',
+  fromTokenAddress: TOKENS.SUI,
+  toTokenAddress: TOKENS.USDC,
+  amount: rawAmount,
+  slippagePercent: '0.5',
+  userWalletAddress: process.env.SUI_WALLET_ADDRESS
+});
+
+console.log('\nSwap completed successfully!');
+console.log('Transaction ID:', result.transactionId);
+console.log('Explorer URL:', result.explorerUrl);
+
+if (result.details) {
+  console.log('\nDetails:');
+  console.log(`Input: ${result.details.fromToken.amount} ${result.details.fromToken.symbol}`);
+  console.log(`Output: ${result.details.toToken.amount} ${result.details.toToken.symbol}`);
+  if (result.details.priceImpact) {
+    console.log(`Price Impact: ${result.details.priceImpact}%`);
+  }
+}
+```
+
+## Complete Working Example
+
+Here's a full example you can run:
+
+```typescript
+import { OKXDexClient } from '@okx-dex/sdk';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Validate environment variables
+const requiredEnvVars = [
+  'OKX_API_KEY',
+  'OKX_SECRET_KEY',
+  'OKX_API_PASSPHRASE',
+  'OKX_PROJECT_ID',
+  'SUI_WALLET_ADDRESS',
+  'SUI_PRIVATE_KEY',
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
+
+// Token addresses
+const TOKENS = {
+  SUI: "0x2::sui::SUI",
+  USDC: "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
+};
+
+async function main() {
+  try {
+    // Initialize client
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      sui: {
+        privateKey: process.env.SUI_PRIVATE_KEY!,
+        walletAddress: process.env.SUI_WALLET_ADDRESS!,
+        connection: {
+          rpcUrl: 'https://sui-mainnet.blockvision.org'
+        }
+      }
+    });
+
+    // Execute swap: 1.5 SUI to USDC
+    const result = await client.dex.executeSwap({
+      chainIndex: '784',
+      fromTokenAddress: TOKENS.SUI,
+      toTokenAddress: TOKENS.USDC,
+      amount: '1500000000',  // 1.5 SUI (9 decimals)
+      slippagePercent: '0.5',
+      userWalletAddress: process.env.SUI_WALLET_ADDRESS
+    });
+
+    console.log('✅ Swap completed!');
+    console.log('Transaction ID:', result.transactionId);
+    console.log('Explorer:', result.explorerUrl);
+    
+  } catch (error) {
+    console.error('❌ Swap failed:', error.message);
+    process.exit(1);
+  }
+}
+
+main();
+```
+
+## Sui-Specific Configuration
+
+When configuring the client for Sui, you can customize the connection:
+
+```typescript
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  sui: {
+    privateKey: process.env.SUI_PRIVATE_KEY!,
+    walletAddress: process.env.SUI_WALLET_ADDRESS!,
+    connection: {
+      rpcUrl: 'https://sui-mainnet.blockvision.org',
+      // Or use testnet:
+      // rpcUrl: 'https://fullnode.testnet.sui.io'
+    }
+  }
+});
+```
+
+## Understanding Sui Token Addresses
+
+Sui uses a different address format than other chains:
+
+- **Module-based**: Tokens are identified by their module path
+- **Format**: `{package}::{module}::{type}`
+- **Example**: `0x2::sui::SUI` breaks down to:
+  - Package: `0x2` (system package)
+  - Module: `sui`
+  - Type: `SUI`
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Verify Addresses" icon="magnifying-glass">
+    Double-check token type identifiers before swapping
+  </Card>
+  
+  <Card title="Test with Small Amounts" icon="flask">
+    Start with small swaps to verify configuration
+  </Card>
+  
+  <Card title="Monitor Gas" icon="gas-pump">
+    Keep sufficient SUI for transaction fees
+  </Card>
+  
+  <Card title="Use Official RPCs" icon="server">
+    Connect to reliable RPC endpoints for best performance
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+```typescript
+try {
+  const result = await client.dex.executeSwap({
+    chainIndex: '784',
+    fromTokenAddress: '0x2::sui::SUI',
+    toTokenAddress: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+    amount: '1000000000',
+    slippagePercent: '0.5',
+    userWalletAddress: process.env.SUI_WALLET_ADDRESS
+  });
+  
+  console.log('Success:', result.transactionId);
+} catch (error) {
+  if (error.message.includes('insufficient')) {
+    console.error('Insufficient SUI balance');
+  } else if (error.message.includes('invalid')) {
+    console.error('Invalid token address or configuration');
+  } else {
+    console.error('Swap failed:', error.message);
+  }
+}
+```
+
+## Swap Parameters
+
+All parameters for Sui swaps:
+
+```typescript
+await client.dex.executeSwap({
+  chainIndex: '784',              // Required: Sui chain ID
+  fromTokenAddress: string,       // Required: Source token type
+  toTokenAddress: string,         // Required: Destination token type
+  amount: string,                 // Required: Amount in base units
+  slippagePercent: string,        // Required: Max slippage (e.g., '0.5' for 0.5%)
+  userWalletAddress: string       // Required: Your Sui wallet address
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="TON Swaps" icon="paper-plane" href="/guides/ton-swaps">
+    Learn how to get quotes on TON
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api-reference/dex/execute-swap">
+    View complete swap API documentation
+  </Card>
+</CardGroup>

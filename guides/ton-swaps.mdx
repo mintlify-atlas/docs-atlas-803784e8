@@ -1,0 +1,326 @@
+---
+title: 'TON Quotes'
+description: 'Get swap quotes on The Open Network (TON) blockchain'
+icon: 'paper-plane'
+---
+
+This guide shows you how to get token swap quotes on TON using the OKX DEX SDK. The SDK provides quote and swap data functionality for TON.
+
+## Prerequisites
+
+- OKX API credentials (API key, secret key, passphrase, project ID)
+- TON wallet address for swap data queries
+- Basic understanding of TON token addresses
+
+## Setup
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install the OKX DEX SDK:
+    
+    ```bash
+    npm install @okx-dex/sdk dotenv
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    Set up your environment variables:
+    
+    ```bash
+    OKX_API_KEY=your_api_key
+    OKX_SECRET_KEY=your_secret_key
+    OKX_API_PASSPHRASE=your_passphrase
+    OKX_PROJECT_ID=your_project_id
+    ```
+  </Step>
+
+  <Step title="Initialize the Client">
+    Create the OKX DEX client:
+    
+    ```typescript
+    import { OKXDexClient } from '@okx-dex/sdk';
+    import 'dotenv/config';
+    
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!
+    });
+    ```
+    
+    <Note>
+      For TON quotes, you don't need to configure a wallet in the client initialization.
+    </Note>
+  </Step>
+</Steps>
+
+## Common Token Addresses
+
+TON uses base64-encoded addresses:
+
+| Token | Address |
+|-------|----------|
+| TON (Native) | `EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c` |
+| USDC | `EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs` |
+
+## Getting a Quote
+
+Fetch a swap quote to preview rates and output amounts:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '607',  // TON Chain ID
+  amount: '10000000000',  // Amount in smallest units
+  fromTokenAddress: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',  // TON
+  toTokenAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',    // USDC
+  slippagePercent: '0.1'  // 0.1% slippage tolerance
+});
+
+console.log('Quote response:', JSON.stringify(quote, null, 2));
+```
+
+## Understanding Quote Response
+
+The quote response contains detailed information about the swap:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '607',
+  fromTokenAddress: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+  toTokenAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+  amount: '10000000000',
+  slippagePercent: '0.1'
+});
+
+// Access quote information
+if (quote.data && quote.data.length > 0) {
+  const quoteData = quote.data[0];
+  
+  console.log('From Token:', quoteData.fromToken.tokenSymbol);
+  console.log('To Token:', quoteData.toToken.tokenSymbol);
+  console.log('Input Amount:', quoteData.fromToken.tokenAmount);
+  console.log('Output Amount:', quoteData.toToken.tokenAmount);
+  console.log('Price Impact:', quoteData.routerResult?.priceImpactPercent);
+  console.log('Estimated Gas:', quoteData.estimateGasFee);
+}
+```
+
+## Getting Swap Data
+
+For more detailed swap information including transaction data:
+
+```typescript
+const walletAddress = "YOUR_TON_WALLET_ADDRESS";
+
+const swapData = await client.dex.getSwapData({
+  chainIndex: '607',
+  fromTokenAddress: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+  toTokenAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+  amount: '10000000000',
+  slippagePercent: '0.1',
+  userWalletAddress: walletAddress,
+  autoSlippage: true  // Automatically adjust slippage if needed
+});
+
+console.log('Swap Data:', JSON.stringify(swapData, null, 2));
+```
+
+## Complete Example
+
+Here's a complete working example:
+
+```typescript
+import { OKXDexClient } from '@okx-dex/sdk';
+import 'dotenv/config';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+async function getTONQuote() {
+  try {
+    // Get quote for swapping 10 TON to USDC
+    const quote = await client.dex.getQuote({
+      chainIndex: '607',
+      amount: '10000000000',  // 10 TON (9 decimals)
+      fromTokenAddress: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+      toTokenAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+      slippagePercent: '0.1'
+    });
+
+    if (quote.code === '0' && quote.data?.length > 0) {
+      const data = quote.data[0];
+      
+      console.log('✅ Quote Retrieved Successfully');
+      console.log('================================');
+      console.log(`Swap: ${data.fromToken.tokenSymbol} → ${data.toToken.tokenSymbol}`);
+      console.log(`Input: ${data.fromToken.tokenAmount} ${data.fromToken.tokenSymbol}`);
+      console.log(`Output: ${data.toToken.tokenAmount} ${data.toToken.tokenSymbol}`);
+      console.log(`Rate: 1 ${data.fromToken.tokenSymbol} = ${parseFloat(data.toToken.tokenAmount) / parseFloat(data.fromToken.tokenAmount)} ${data.toToken.tokenSymbol}`);
+      
+      if (data.routerResult?.priceImpactPercent) {
+        console.log(`Price Impact: ${data.routerResult.priceImpactPercent}%`);
+      }
+      
+      if (data.estimateGasFee) {
+        console.log(`Estimated Gas: ${data.estimateGasFee}`);
+      }
+    } else {
+      console.error('❌ Failed to get quote:', quote.msg);
+    }
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    process.exit(1);
+  }
+}
+
+getTONQuote();
+```
+
+## Quote Parameters
+
+All available parameters for TON quotes:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `chainIndex` | string | Yes | Chain ID for TON (`'607'`) |
+| `fromTokenAddress` | string | Yes | Source token address |
+| `toTokenAddress` | string | Yes | Destination token address |
+| `amount` | string | Yes | Amount in smallest units |
+| `slippagePercent` | string | Yes | Max slippage (e.g., `'0.1'` for 0.1%) |
+
+## Swap Data Parameters
+
+Additional parameters when getting swap data:
+
+```typescript
+await client.dex.getSwapData({
+  chainIndex: '607',              // Required: TON chain ID
+  fromTokenAddress: string,       // Required: Source token
+  toTokenAddress: string,         // Required: Destination token
+  amount: string,                 // Required: Amount in base units
+  slippagePercent: string,        // Required: Slippage tolerance
+  userWalletAddress: string,      // Required: Your TON wallet
+  autoSlippage: boolean          // Optional: Auto-adjust slippage
+});
+```
+
+## Understanding TON Amounts
+
+TON uses 9 decimals for native tokens:
+
+```typescript
+// Converting TON amounts
+1 TON = 1000000000 (smallest units)
+10 TON = 10000000000
+0.1 TON = 100000000
+
+// Example conversion
+function tonToSmallestUnits(ton: number): string {
+  return (ton * 1_000_000_000).toString();
+}
+
+const amount = tonToSmallestUnits(10); // "10000000000"
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Check Quote Response" icon="magnifying-glass">
+    Always verify `quote.code === '0'` before using data
+  </Card>
+  
+  <Card title="Use Appropriate Slippage" icon="percent">
+    Set 0.1-0.5% for stable pairs, higher for volatile pairs
+  </Card>
+  
+  <Card title="Handle Errors Gracefully" icon="triangle-exclamation">
+    Check response codes and handle API errors
+  </Card>
+  
+  <Card title="Monitor Price Impact" icon="chart-line">
+    Review price impact before executing large swaps
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+```typescript
+try {
+  const quote = await client.dex.getQuote({
+    chainIndex: '607',
+    fromTokenAddress: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
+    toTokenAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+    amount: '10000000000',
+    slippagePercent: '0.1'
+  });
+
+  if (quote.code !== '0') {
+    throw new Error(`API Error: ${quote.msg}`);
+  }
+
+  if (!quote.data || quote.data.length === 0) {
+    throw new Error('No quote data available');
+  }
+
+  // Process quote
+  const data = quote.data[0];
+  console.log('Quote received:', data);
+  
+} catch (error) {
+  if (error.message.includes('network')) {
+    console.error('Network error - check your connection');
+  } else if (error.message.includes('insufficient')) {
+    console.error('Insufficient liquidity for this trade');
+  } else {
+    console.error('Quote failed:', error.message);
+  }
+}
+```
+
+## Response Structure
+
+Typical quote response structure:
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "fromToken": {
+        "tokenSymbol": "TON",
+        "tokenAmount": "10",
+        "decimal": "9",
+        "tokenUnitPrice": "5.23"
+      },
+      "toToken": {
+        "tokenSymbol": "USDC",
+        "tokenAmount": "52.3",
+        "decimal": "6",
+        "tokenUnitPrice": "1.0"
+      },
+      "estimateGasFee": "0.01",
+      "routerResult": {
+        "priceImpactPercent": "0.05"
+      }
+    }
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="TRON Quotes" icon="circle" href="/guides/tron-swaps">
+    Learn how to get quotes on TRON
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api-reference/dex/get-quote">
+    View complete quote API documentation
+  </Card>
+</CardGroup>

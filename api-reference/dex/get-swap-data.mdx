@@ -1,0 +1,262 @@
+---
+title: "Get Swap Data"
+description: "Get transaction data needed to execute a token swap"
+---
+
+## Method
+
+```typescript
+async getSwapData(params: SwapParams): Promise<SwapResponseData>
+```
+
+Retrieves the complete transaction data needed to execute a swap, including routing information and transaction parameters.
+
+## Parameters
+
+<ParamField path="params" type="SwapParams" required>
+  Swap request parameters
+
+  <Expandable title="properties">
+    <ParamField path="chainIndex" type="string">
+      Chain identifier (e.g., "1" for Ethereum, "501" for Solana)
+    </ParamField>
+
+    <ParamField path="fromTokenAddress" type="string" required>
+      Contract address of the token to swap from
+    </ParamField>
+
+    <ParamField path="toTokenAddress" type="string" required>
+      Contract address of the token to swap to
+    </ParamField>
+
+    <ParamField path="amount" type="string" required>
+      Amount to swap (in token's smallest unit)
+    </ParamField>
+
+    <ParamField path="slippagePercent" type="string">
+      Maximum acceptable slippage (0-1, e.g., "0.005" for 0.5%). Required if autoSlippage is false.
+    </ParamField>
+
+    <ParamField path="autoSlippage" type="boolean">
+      Enable automatic slippage calculation
+    </ParamField>
+
+    <ParamField path="maxAutoSlippagePercent" type="string">
+      Maximum slippage when autoSlippage is enabled (required with autoSlippage)
+    </ParamField>
+
+    <ParamField path="userWalletAddress" type="string">
+      User's wallet address
+    </ParamField>
+
+    <ParamField path="swapReceiverAddress" type="string">
+      Address to receive swapped tokens (defaults to userWalletAddress)
+    </ParamField>
+
+    <ParamField path="dexIds" type="string">
+      Comma-separated list of DEX IDs to route through
+    </ParamField>
+
+    <ParamField path="directRoute" type="boolean">
+      Whether to use direct routing only
+    </ParamField>
+
+    <ParamField path="priceImpactProtectionPercent" type="string">
+      Maximum acceptable price impact (0-1)
+    </ParamField>
+
+    <ParamField path="feePercent" type="string">
+      Referral fee percentage
+    </ParamField>
+
+    <ParamField path="fromTokenReferrerWalletAddress" type="string">
+      Referrer wallet address for source token fees
+    </ParamField>
+
+    <ParamField path="toTokenReferrerWalletAddress" type="string">
+      Referrer wallet address for destination token fees
+    </ParamField>
+
+    <ParamField path="positiveSlippagePercent" type="string">
+      Positive slippage percentage
+    </ParamField>
+
+    <ParamField path="gasLimit" type="string">
+      Gas limit for the transaction (EVM chains)
+    </ParamField>
+
+    <ParamField path="gasLevel" type="string">
+      Gas level: "low", "medium", or "high" (EVM chains)
+    </ParamField>
+
+    <ParamField path="computeUnitPrice" type="string">
+      Compute unit price (Solana only)
+    </ParamField>
+
+    <ParamField path="computeUnitLimit" type="string">
+      Compute unit limit (Solana only)
+    </ParamField>
+
+    <ParamField path="callDataMemo" type="string">
+      Memo data for the transaction
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array containing swap execution data
+
+  <Expandable title="data properties">
+    <ResponseField name="routerResult" type="RouterResult">
+      Routing and pricing information
+
+      <Expandable title="properties">
+        <ResponseField name="chainIndex" type="string">
+          Chain identifier
+        </ResponseField>
+        <ResponseField name="fromToken" type="TokenInfo">
+          Source token information
+        </ResponseField>
+        <ResponseField name="toToken" type="TokenInfo">
+          Destination token information
+        </ResponseField>
+        <ResponseField name="fromTokenAmount" type="string">
+          Input token amount
+        </ResponseField>
+        <ResponseField name="toTokenAmount" type="string">
+          Expected output token amount
+        </ResponseField>
+        <ResponseField name="estimateGasFee" type="string">
+          Estimated gas fee
+        </ResponseField>
+        <ResponseField name="priceImpactPercent" type="string">
+          Price impact percentage
+        </ResponseField>
+        <ResponseField name="tradeFee" type="string">
+          Trading fee amount
+        </ResponseField>
+        <ResponseField name="router" type="string">
+          Router information
+        </ResponseField>
+        <ResponseField name="swapMode" type="string">
+          Swap mode identifier
+        </ResponseField>
+        <ResponseField name="dexRouterList" type="DexRouter[]">
+          List of DEX routers used
+        </ResponseField>
+        <ResponseField name="contextSlot" type="number">
+          Context slot (Solana only)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="tx" type="TransactionData">
+      Transaction data for execution
+
+      <Expandable title="properties">
+        <ResponseField name="from" type="string">
+          Sender address
+        </ResponseField>
+        <ResponseField name="to" type="string">
+          Contract address to call
+        </ResponseField>
+        <ResponseField name="data" type="string">
+          Encoded transaction data
+        </ResponseField>
+        <ResponseField name="value" type="string">
+          Native token value to send
+        </ResponseField>
+        <ResponseField name="gas" type="string">
+          Gas limit
+        </ResponseField>
+        <ResponseField name="gasPrice" type="string">
+          Gas price (legacy transactions)
+        </ResponseField>
+        <ResponseField name="maxPriorityFeePerGas" type="string">
+          Max priority fee (EIP-1559 transactions)
+        </ResponseField>
+        <ResponseField name="minReceiveAmount" type="string">
+          Minimum tokens to receive after slippage
+        </ResponseField>
+        <ResponseField name="maxSpendAmount" type="string">
+          Maximum tokens to spend
+        </ResponseField>
+        <ResponseField name="slippagePercent" type="string">
+          Applied slippage percentage
+        </ResponseField>
+        <ResponseField name="signatureData" type="string[]">
+          Additional signature data
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { OKXClient } from '@okxweb3/okx-api';
+
+const client = new OKXClient({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+const swapData = await client.dex.getSwapData({
+  chainIndex: '1',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  amount: '1000000000000000000', // 1 ETH
+  slippagePercent: '0.005',
+  userWalletAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+});
+
+console.log('Transaction data:', swapData.data[0].tx);
+console.log('Router result:', swapData.data[0].routerResult);
+```
+
+## Response Example
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [{
+    "routerResult": {
+      "chainIndex": "1",
+      "fromTokenAmount": "1000000000000000000",
+      "toTokenAmount": "2487500000",
+      "estimateGasFee": "0.002",
+      "priceImpactPercent": "0.15"
+    },
+    "tx": {
+      "from": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+      "to": "0x1111111254fb6c44bAC0beD2854e76F90643097d",
+      "data": "0x12aa3caf...",
+      "value": "1000000000000000000",
+      "gas": "200000",
+      "gasPrice": "20000000000",
+      "minReceiveAmount": "2475037500"
+    }
+  }]
+}
+```
+
+## Validation
+
+The method validates:
+- Either `slippagePercent` or `autoSlippage` must be provided
+- `slippagePercent` must be between 0 and 1
+- `maxAutoSlippagePercent` is required when `autoSlippage` is enabled

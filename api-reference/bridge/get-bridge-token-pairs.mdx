@@ -1,0 +1,255 @@
+---
+title: "Get Bridge Token Pairs"
+description: "Get available token pairs for bridging from a source chain"
+---
+
+## Method Signature
+
+```typescript
+async getBridgeTokenPairs(fromChainIndex: string): Promise<APIResponse<any>>
+```
+
+Retrieves all available token pair combinations for cross-chain transfers from a specific source chain. This helps identify which tokens can be bridged to which destination chains and their corresponding token addresses.
+
+## Parameters
+
+<ParamField path="fromChainIndex" type="string" required>
+  The source chain index identifier from which tokens will be bridged (e.g., "1" for Ethereum, "501" for Solana)
+</ParamField>
+
+## Response
+
+<ResponseField name="code" type="string">
+  Response code ("0" indicates success)
+</ResponseField>
+
+<ResponseField name="msg" type="string">
+  Response message
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of token pair information
+  
+  <ResponseField name="fromChainIndex" type="string">
+    Source chain index
+  </ResponseField>
+  
+  <ResponseField name="toChainIndex" type="string">
+    Destination chain index
+  </ResponseField>
+  
+  <ResponseField name="fromTokenAddress" type="string">
+    Token contract address on the source chain
+  </ResponseField>
+  
+  <ResponseField name="toTokenAddress" type="string">
+    Corresponding token contract address on the destination chain
+  </ResponseField>
+  
+  <ResponseField name="fromTokenSymbol" type="string">
+    Token symbol on the source chain
+  </ResponseField>
+  
+  <ResponseField name="toTokenSymbol" type="string">
+    Token symbol on the destination chain
+  </ResponseField>
+  
+  <ResponseField name="bridgeIds" type="string[]">
+    Array of bridge protocol IDs that support this token pair
+  </ResponseField>
+</ResponseField>
+
+## Code Example
+
+```typescript
+import { OKXDexSDK } from '@okxweb3/dex-sdk';
+
+const sdk = new OKXDexSDK({
+  apiKey: 'your-api-key',
+  secretKey: 'your-secret-key',
+  apiPassphrase: 'your-passphrase',
+  projectId: 'your-project-id'
+});
+
+// Get all token pairs bridgeable from Ethereum
+const tokenPairs = await sdk.bridge.getBridgeTokenPairs('1');
+
+console.log(`Found ${tokenPairs.data.length} bridgeable token pairs`);
+
+tokenPairs.data.forEach(pair => {
+  console.log(`${pair.fromTokenSymbol} on chain ${pair.fromChainIndex} -> ${pair.toTokenSymbol} on chain ${pair.toChainIndex}`);
+  console.log(`  From: ${pair.fromTokenAddress}`);
+  console.log(`  To: ${pair.toTokenAddress}`);
+  console.log(`  Bridges: ${pair.bridgeIds.join(', ')}`);
+});
+```
+
+## Use Cases
+
+### Find Destination Chains for a Token
+
+```typescript
+// Find all chains where USDC can be bridged to from Ethereum
+const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+
+const tokenPairs = await sdk.bridge.getBridgeTokenPairs('1');
+
+const usdcDestinations = tokenPairs.data.filter(
+  pair => pair.fromTokenAddress.toLowerCase() === usdcAddress.toLowerCase()
+);
+
+console.log('USDC can be bridged to:');
+usdcDestinations.forEach(pair => {
+  console.log(`  Chain ${pair.toChainIndex}: ${pair.toTokenAddress}`);
+});
+```
+
+### Build Token Pair Selector
+
+```typescript
+interface TokenPairOption {
+  fromChain: string;
+  toChain: string;
+  fromToken: string;
+  toToken: string;
+  fromSymbol: string;
+  toSymbol: string;
+  bridges: string[];
+}
+
+const buildTokenPairOptions = async (
+  fromChainIndex: string
+): Promise<TokenPairOption[]> => {
+  const pairs = await sdk.bridge.getBridgeTokenPairs(fromChainIndex);
+  
+  return pairs.data.map(pair => ({
+    fromChain: pair.fromChainIndex,
+    toChain: pair.toChainIndex,
+    fromToken: pair.fromTokenAddress,
+    toToken: pair.toTokenAddress,
+    fromSymbol: pair.fromTokenSymbol,
+    toSymbol: pair.toTokenSymbol,
+    bridges: pair.bridgeIds
+  }));
+};
+
+// Usage in UI
+const options = await buildTokenPairOptions('1');
+```
+
+### Check if Token Pair is Supported
+
+```typescript
+const isTokenPairSupported = async (
+  fromChainIndex: string,
+  toChainIndex: string,
+  fromTokenAddress: string,
+  toTokenAddress: string
+): Promise<boolean> => {
+  const pairs = await sdk.bridge.getBridgeTokenPairs(fromChainIndex);
+  
+  return pairs.data.some(
+    pair =>
+      pair.toChainIndex === toChainIndex &&
+      pair.fromTokenAddress.toLowerCase() === fromTokenAddress.toLowerCase() &&
+      pair.toTokenAddress.toLowerCase() === toTokenAddress.toLowerCase()
+  );
+};
+
+const canBridge = await isTokenPairSupported(
+  '1',      // Ethereum
+  '42161',  // Arbitrum
+  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // USDC on Ethereum
+  '0xFF970a61A04b1cA14834A43f5dE4533eBDDB5CC8'  // USDC on Arbitrum
+);
+```
+
+### Get Available Bridges for Token Pair
+
+```typescript
+const getBridgesForTokenPair = async (
+  fromChainIndex: string,
+  toChainIndex: string,
+  fromTokenAddress: string
+): Promise<string[]> => {
+  const pairs = await sdk.bridge.getBridgeTokenPairs(fromChainIndex);
+  
+  const pair = pairs.data.find(
+    p =>
+      p.toChainIndex === toChainIndex &&
+      p.fromTokenAddress.toLowerCase() === fromTokenAddress.toLowerCase()
+  );
+  
+  return pair?.bridgeIds || [];
+};
+
+// Find which bridges support USDC from Ethereum to Arbitrum
+const availableBridges = await getBridgesForTokenPair(
+  '1',
+  '42161',
+  '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+);
+
+console.log('Available bridges:', availableBridges);
+```
+
+### Filter by Destination Chain
+
+```typescript
+// Get all tokens bridgeable from Ethereum to Arbitrum
+const getPairsByDestination = async (
+  fromChainIndex: string,
+  toChainIndex: string
+) => {
+  const pairs = await sdk.bridge.getBridgeTokenPairs(fromChainIndex);
+  
+  return pairs.data.filter(pair => pair.toChainIndex === toChainIndex);
+};
+
+const ethToArbPairs = await getPairsByDestination('1', '42161');
+
+console.log(`${ethToArbPairs.length} tokens can be bridged from Ethereum to Arbitrum`);
+ethToArbPairs.forEach(pair => {
+  console.log(`  ${pair.fromTokenSymbol} -> ${pair.toTokenSymbol}`);
+});
+```
+
+## Integration Example
+
+```typescript
+// Complete flow: check pair support, then get quote
+const bridgeToken = async (
+  fromChain: string,
+  toChain: string,
+  fromToken: string,
+  amount: string
+) => {
+  // 1. Get supported pairs
+  const pairs = await sdk.bridge.getBridgeTokenPairs(fromChain);
+  
+  // 2. Find matching pair
+  const pair = pairs.data.find(
+    p =>
+      p.toChainIndex === toChain &&
+      p.fromTokenAddress.toLowerCase() === fromToken.toLowerCase()
+  );
+  
+  if (!pair) {
+    throw new Error('Token pair not supported for bridging');
+  }
+  
+  // 3. Get quote using the correct toTokenAddress
+  const quote = await sdk.bridge.getCrossChainQuote({
+    fromChainIndex: fromChain,
+    toChainIndex: toChain,
+    fromChainId: fromChain,
+    toChainId: toChain,
+    fromTokenAddress: pair.fromTokenAddress,
+    toTokenAddress: pair.toTokenAddress,
+    amount: amount,
+    slippagePercent: '0.005'
+  });
+  
+  return quote;
+};
+```

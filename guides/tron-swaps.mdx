@@ -1,0 +1,367 @@
+---
+title: 'TRON Quotes'
+description: 'Get swap quotes on the TRON blockchain'
+icon: 'circle'
+---
+
+This guide shows you how to get token swap quotes on TRON using the OKX DEX SDK. The SDK provides quote and swap data functionality for TRON.
+
+## Prerequisites
+
+- OKX API credentials (API key, secret key, passphrase, project ID)
+- TRON wallet address for swap data queries
+- Basic understanding of TRON token addresses
+
+## Setup
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install the OKX DEX SDK:
+    
+    ```bash
+    npm install @okx-dex/sdk dotenv
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    Set up your environment variables:
+    
+    ```bash
+    OKX_API_KEY=your_api_key
+    OKX_SECRET_KEY=your_secret_key
+    OKX_API_PASSPHRASE=your_passphrase
+    OKX_PROJECT_ID=your_project_id
+    ```
+  </Step>
+
+  <Step title="Initialize the Client">
+    Create the OKX DEX client:
+    
+    ```typescript
+    import { OKXDexClient } from '@okx-dex/sdk';
+    import 'dotenv/config';
+    
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!
+    });
+    ```
+    
+    <Note>
+      For TRON quotes, you don't need to configure a wallet in the client initialization.
+    </Note>
+  </Step>
+</Steps>
+
+## Common Token Addresses
+
+TRON uses T-prefixed addresses:
+
+| Token | Address |
+|-------|----------|
+| TRX (Native) | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` |
+| USDT | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` |
+
+## Getting a Quote
+
+Fetch a swap quote to preview rates and output amounts:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '195',  // TRON Chain ID
+  amount: '10000000000',  // Amount in smallest units (SUN)
+  fromTokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',  // TRX
+  toTokenAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',    // USDT
+  slippagePercent: '0.1'  // 0.1% slippage tolerance
+});
+
+console.log('Quote response:', JSON.stringify(quote, null, 2));
+```
+
+## Understanding Quote Response
+
+The quote response provides detailed swap information:
+
+```typescript
+const quote = await client.dex.getQuote({
+  chainIndex: '195',
+  fromTokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+  toTokenAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  amount: '10000000000',
+  slippagePercent: '0.1'
+});
+
+// Access quote data
+if (quote.code === '0' && quote.data?.length > 0) {
+  const data = quote.data[0];
+  
+  console.log('From Token:', data.fromToken.tokenSymbol);
+  console.log('To Token:', data.toToken.tokenSymbol);
+  console.log('Input Amount:', data.fromToken.tokenAmount);
+  console.log('Output Amount:', data.toToken.tokenAmount);
+  console.log('Exchange Rate:', parseFloat(data.toToken.tokenAmount) / parseFloat(data.fromToken.tokenAmount));
+  
+  if (data.routerResult?.priceImpactPercent) {
+    console.log('Price Impact:', data.routerResult.priceImpactPercent + '%');
+  }
+  
+  if (data.estimateGasFee) {
+    console.log('Estimated Energy:', data.estimateGasFee);
+  }
+}
+```
+
+## Getting Swap Data
+
+For detailed swap information including transaction data:
+
+```typescript
+const walletAddress = "YOUR_TRON_WALLET_ADDRESS";
+
+const swapData = await client.dex.getSwapData({
+  chainIndex: '195',
+  fromTokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+  toTokenAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  amount: '10000000000',
+  slippagePercent: '0.1',
+  userWalletAddress: walletAddress,
+  autoSlippage: true  // Automatically adjust slippage if needed
+});
+
+console.log('Swap Data:', JSON.stringify(swapData, null, 2));
+```
+
+## Complete Example
+
+Here's a complete working example:
+
+```typescript
+import { OKXDexClient } from '@okx-dex/sdk';
+import 'dotenv/config';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+async function getTRONQuote() {
+  try {
+    // Get quote for swapping TRX to USDT
+    const quote = await client.dex.getQuote({
+      chainIndex: '195',
+      amount: '10000000000',  // 10,000 TRX (6 decimals)
+      fromTokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',  // TRX
+      toTokenAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',    // USDT
+      slippagePercent: '0.1'
+    });
+
+    if (quote.code === '0' && quote.data?.length > 0) {
+      const data = quote.data[0];
+      
+      console.log('✅ Quote Retrieved Successfully');
+      console.log('================================');
+      console.log(`Swap: ${data.fromToken.tokenSymbol} → ${data.toToken.tokenSymbol}`);
+      console.log(`Input: ${data.fromToken.tokenAmount} ${data.fromToken.tokenSymbol}`);
+      console.log(`Output: ${data.toToken.tokenAmount} ${data.toToken.tokenSymbol}`);
+      
+      const rate = parseFloat(data.toToken.tokenAmount) / parseFloat(data.fromToken.tokenAmount);
+      console.log(`Rate: 1 ${data.fromToken.tokenSymbol} = ${rate.toFixed(6)} ${data.toToken.tokenSymbol}`);
+      
+      if (data.routerResult?.priceImpactPercent) {
+        console.log(`Price Impact: ${data.routerResult.priceImpactPercent}%`);
+      }
+      
+      if (data.estimateGasFee) {
+        console.log(`Estimated Energy Cost: ${data.estimateGasFee}`);
+      }
+    } else {
+      console.error('❌ Failed to get quote:', quote.msg);
+    }
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    process.exit(1);
+  }
+}
+
+getTRONQuote();
+```
+
+## Quote Parameters
+
+All available parameters for TRON quotes:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `chainIndex` | string | Yes | Chain ID for TRON (`'195'`) |
+| `fromTokenAddress` | string | Yes | Source token address |
+| `toTokenAddress` | string | Yes | Destination token address |
+| `amount` | string | Yes | Amount in smallest units (SUN) |
+| `slippagePercent` | string | Yes | Max slippage (e.g., `'0.1'` for 0.1%) |
+
+## Swap Data Parameters
+
+Additional parameters when getting swap data:
+
+```typescript
+await client.dex.getSwapData({
+  chainIndex: '195',              // Required: TRON chain ID
+  fromTokenAddress: string,       // Required: Source token
+  toTokenAddress: string,         // Required: Destination token
+  amount: string,                 // Required: Amount in SUN
+  slippagePercent: string,        // Required: Slippage tolerance
+  userWalletAddress: string,      // Required: Your TRON wallet
+  autoSlippage: boolean          // Optional: Auto-adjust slippage
+});
+```
+
+## Understanding TRON Amounts
+
+TRON uses 6 decimals for most tokens:
+
+```typescript
+// Converting TRX amounts
+1 TRX = 1000000 SUN (smallest units)
+10 TRX = 10000000 SUN
+0.1 TRX = 100000 SUN
+
+// Example conversion
+function trxToSun(trx: number): string {
+  return (trx * 1_000_000).toString();
+}
+
+const amount = trxToSun(10); // "10000000"
+```
+
+<Note>
+  **SUN** is the smallest unit of TRX, similar to how satoshi is to Bitcoin or wei is to Ethereum.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Verify Response Code" icon="check">
+    Always check `quote.code === '0'` for successful responses
+  </Card>
+  
+  <Card title="Set Appropriate Slippage" icon="percent">
+    Use 0.1-0.5% for stablecoins, higher for volatile tokens
+  </Card>
+  
+  <Card title="Monitor Energy Costs" icon="bolt">
+    Check `estimateGasFee` to ensure sufficient energy/bandwidth
+  </Card>
+  
+  <Card title="Handle Price Impact" icon="chart-line">
+    Review price impact for large trades
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+```typescript
+try {
+  const quote = await client.dex.getQuote({
+    chainIndex: '195',
+    fromTokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+    toTokenAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+    amount: '10000000000',
+    slippagePercent: '0.1'
+  });
+
+  // Check response code
+  if (quote.code !== '0') {
+    throw new Error(`API Error (${quote.code}): ${quote.msg}`);
+  }
+
+  // Verify data exists
+  if (!quote.data || quote.data.length === 0) {
+    throw new Error('No quote data available');
+  }
+
+  // Process quote
+  const data = quote.data[0];
+  console.log('Quote received:', data);
+  
+} catch (error) {
+  if (error.message.includes('insufficient liquidity')) {
+    console.error('Not enough liquidity for this trade size');
+  } else if (error.message.includes('invalid address')) {
+    console.error('Invalid token address format');
+  } else if (error.message.includes('network')) {
+    console.error('Network error - check your connection');
+  } else {
+    console.error('Quote failed:', error.message);
+  }
+}
+```
+
+## Response Structure
+
+Typical quote response structure:
+
+```json
+{
+  "code": "0",
+  "msg": "",
+  "data": [
+    {
+      "fromToken": {
+        "tokenSymbol": "TRX",
+        "tokenAmount": "10000",
+        "decimal": "6",
+        "tokenUnitPrice": "0.08"
+      },
+      "toToken": {
+        "tokenSymbol": "USDT",
+        "tokenAmount": "800",
+        "decimal": "6",
+        "tokenUnitPrice": "1.0"
+      },
+      "estimateGasFee": "14000",
+      "routerResult": {
+        "priceImpactPercent": "0.02"
+      }
+    }
+  ]
+}
+```
+
+## Energy and Bandwidth
+
+TRON uses energy and bandwidth for transactions:
+
+- **Energy**: Required for smart contract calls (swaps on DEXs)
+- **Bandwidth**: Required for basic transactions
+- **Burning TRX**: If you don't have enough energy/bandwidth, TRX is burned
+
+```typescript
+// Check estimated energy cost
+const quote = await client.dex.getQuote({
+  chainIndex: '195',
+  fromTokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+  toTokenAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  amount: '10000000',
+  slippagePercent: '0.1'
+});
+
+if (quote.data?.[0]?.estimateGasFee) {
+  console.log('Estimated energy needed:', quote.data[0].estimateGasFee);
+  console.log('Ensure you have sufficient energy or TRX to burn');
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="EVM Swaps" icon="link" href="/guides/evm-swaps">
+    Learn how to execute swaps on EVM chains
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api-reference/dex/get-quote">
+    View complete quote API documentation
+  </Card>
+</CardGroup>

@@ -1,0 +1,432 @@
+---
+title: 'Gas Estimation'
+description: 'Estimate gas costs for your DEX transactions'
+---
+
+## Overview
+
+Accurate gas estimation is crucial for successful transaction execution. The OKX DEX SDK provides methods to estimate gas limits and retrieve current gas prices, including EIP-1559 support.
+
+## Gas Price Estimation
+
+Get current gas prices for any supported chain.
+
+### Basic Gas Price
+
+```typescript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!
+});
+
+const gasPrice = await client.dex.getGasPrice('1'); // Ethereum mainnet
+console.log('Gas price data:', gasPrice);
+```
+
+### EIP-1559 Gas Pricing
+
+For chains supporting EIP-1559 (Ethereum, Polygon, Base, etc.):
+
+```typescript
+const gasPrice = await client.dex.getGasPrice('8453'); // Base
+
+if (gasPrice.data[0]) {
+  const { baseFee, maxFeePerGas, maxPriorityFeePerGas } = gasPrice.data[0];
+  
+  console.log('Base Fee:', baseFee);
+  console.log('Max Fee Per Gas:', maxFeePerGas);
+  console.log('Max Priority Fee:', maxPriorityFeePerGas);
+  
+  // Calculate total cost
+  const estimatedGasLimit = 200000;
+  const maxCost = BigInt(maxFeePerGas) * BigInt(estimatedGasLimit);
+  console.log('Max transaction cost:', maxCost.toString(), 'wei');
+}
+```
+
+<Note>
+  **EIP-1559** uses a base fee (burned) + priority fee (to validators) model. The `maxFeePerGas` includes both components.
+</Note>
+
+## Gas Limit Estimation
+
+Estimate the gas required for a specific transaction.
+
+<Steps>
+  <Step title="Get Swap Transaction Data">
+    First, get the transaction data from a swap quote:
+
+    ```typescript
+    import { ethers } from 'ethers';
+    import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+    const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+    const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      evm: { wallet: evmWallet }
+    });
+
+    const swapData = await client.dex.getSwapData({
+      chainIndex: '8453',
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', // ETH
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',   // USDC
+      amount: '100000000000000000', // 0.1 ETH
+      slippagePercent: '0.05',
+      userWalletAddress: evmWallet.address
+    });
+
+    const txData = swapData.data[0]?.tx;
+    console.log('Transaction gas from swap data:', txData?.gas);
+    ```
+  </Step>
+
+  <Step title="Estimate Gas Limit">
+    Use the transaction data to get a precise gas estimate:
+
+    ```typescript
+    if (txData && txData.data) {
+      const gasLimit = await client.dex.getGasLimit({
+        chainIndex: '8453',
+        fromAddress: txData.from,
+        toAddress: txData.to,
+        txAmount: txData.value,
+        extJson: {
+          inputData: txData.data  // Transaction calldata
+        }
+      });
+      
+      console.log('Estimated gas limit:', gasLimit.data[0]?.gasLimit);
+    }
+    ```
+  </Step>
+</Steps>
+
+### Simple ETH Transfer
+
+```typescript
+const gasLimit = await client.dex.getGasLimit({
+  chainIndex: '1',
+  fromAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+  toAddress: '0x1234567890123456789012345678901234567890',
+  txAmount: '1000000000000000000' // 1 ETH
+});
+
+console.log('Gas limit for ETH transfer:', gasLimit.data[0]?.gasLimit);
+```
+
+### Contract Interaction
+
+```typescript
+const gasLimit = await client.dex.getGasLimit({
+  chainIndex: '8453',
+  fromAddress: evmWallet.address,
+  toAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // Contract address
+  txAmount: '0',
+  extJson: {
+    inputData: '0xa9059cbb...' // Contract call data
+  }
+});
+
+console.log('Gas limit for contract call:', gasLimit.data[0]?.gasLimit);
+```
+
+## Complete Gas Estimation Example
+
+<CodeGroup>
+```typescript TypeScript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+import { ethers } from 'ethers';
+import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: { wallet: evmWallet }
+});
+
+async function estimateSwapGas() {
+  try {
+    const chainIndex = '8453'; // Base
+    
+    // Step 1: Get current gas prices
+    console.log('=== Current Gas Prices ===');
+    const gasPrice = await client.dex.getGasPrice(chainIndex);
+    
+    const { baseFee, maxFeePerGas, maxPriorityFeePerGas } = gasPrice.data[0];
+    console.log('Base Fee:', baseFee, 'wei');
+    console.log('Max Fee Per Gas:', maxFeePerGas, 'wei');
+    console.log('Max Priority Fee:', maxPriorityFeePerGas, 'wei');
+    
+    // Step 2: Get swap transaction data
+    console.log('\n=== Getting Swap Data ===');
+    const swapData = await client.dex.getSwapData({
+      chainIndex,
+      fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      amount: '100000000000000000', // 0.1 ETH
+      slippagePercent: '0.05',
+      userWalletAddress: evmWallet.address
+    });
+    
+    const txData = swapData.data[0]?.tx;
+    console.log('Suggested gas from API:', txData?.gas);
+    
+    // Step 3: Estimate gas limit
+    if (txData && txData.data) {
+      console.log('\n=== Gas Limit Estimation ===');
+      const gasLimit = await client.dex.getGasLimit({
+        chainIndex,
+        fromAddress: txData.from,
+        toAddress: txData.to,
+        txAmount: txData.value,
+        extJson: {
+          inputData: txData.data
+        }
+      });
+      
+      const estimatedGasLimit = gasLimit.data[0]?.gasLimit;
+      console.log('Estimated gas limit:', estimatedGasLimit);
+      
+      // Step 4: Calculate total cost
+      console.log('\n=== Cost Estimation ===');
+      const maxCost = BigInt(maxFeePerGas) * BigInt(estimatedGasLimit || txData.gas);
+      const maxCostInEth = Number(maxCost) / 1e18;
+      
+      console.log('Max transaction cost:', maxCost.toString(), 'wei');
+      console.log('Max transaction cost:', maxCostInEth.toFixed(6), 'ETH');
+      
+      // With priority fee only
+      const likelyCost = (BigInt(baseFee) + BigInt(maxPriorityFeePerGas)) * BigInt(estimatedGasLimit || txData.gas);
+      const likelyCostInEth = Number(likelyCost) / 1e18;
+      console.log('Likely transaction cost:', likelyCostInEth.toFixed(6), 'ETH');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+estimateSwapGas();
+```
+
+```javascript JavaScript
+const { OKXDexClient } = require('@okxweb3/dex-sdk');
+const { ethers } = require('ethers');
+const { createEVMWallet } = require('@okxweb3/dex-sdk');
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY,
+  secretKey: process.env.OKX_SECRET_KEY,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE,
+  projectId: process.env.OKX_PROJECT_ID,
+  evm: { wallet: evmWallet }
+});
+
+async function estimateGas() {
+  const gasPrice = await client.dex.getGasPrice('1');
+  console.log('Gas price:', gasPrice.data[0]);
+  
+  const swapData = await client.dex.getSwapData({
+    chainIndex: '1',
+    fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    toTokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+    amount: '1000000000000000000',
+    slippagePercent: '0.05',
+    userWalletAddress: evmWallet.address
+  });
+  
+  const txData = swapData.data[0]?.tx;
+  console.log('Estimated gas:', txData?.gas);
+}
+
+estimateGas();
+```
+</CodeGroup>
+
+## Using Swap Data Gas Estimates
+
+The `getSwapData` method already includes gas estimates:
+
+```typescript
+const swapData = await client.dex.getSwapData({
+  chainIndex: '8453',
+  fromTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  toTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  amount: '100000000000000000',
+  slippagePercent: '0.05',
+  userWalletAddress: evmWallet.address
+});
+
+const tx = swapData.data[0]?.tx;
+
+// Gas data is included in the response
+console.log('Gas limit:', tx.gas);
+console.log('Gas price:', tx.gasPrice);
+console.log('Max fee per gas:', tx.maxFeePerGas);
+console.log('Max priority fee:', tx.maxPriorityFeePerGas);
+
+// You can use these values directly
+const transaction = {
+  to: tx.to,
+  value: tx.value,
+  data: tx.data,
+  gasLimit: tx.gas,
+  maxFeePerGas: tx.maxFeePerGas,
+  maxPriorityFeePerGas: tx.maxPriorityFeePerGas
+};
+```
+
+<Note>
+  The SDK automatically includes appropriate gas estimates in swap transaction data. You can use these values directly or verify them with `getGasLimit`.
+</Note>
+
+## Gas Optimization Tips
+
+### Add Safety Buffer
+
+Always add a buffer to gas estimates:
+
+```typescript
+const estimatedGas = gasLimit.data[0]?.gasLimit;
+const gasWithBuffer = BigInt(estimatedGas) * BigInt(120) / BigInt(100); // 20% buffer
+
+console.log('Gas with 20% buffer:', gasWithBuffer.toString());
+```
+
+### EIP-1559 Priority Fees
+
+Adjust priority fees based on urgency:
+
+```typescript
+const gasPrice = await client.dex.getGasPrice('1');
+const basePriorityFee = BigInt(gasPrice.data[0].maxPriorityFeePerGas);
+
+// Low priority (slow)
+const lowPriorityFee = basePriorityFee * BigInt(80) / BigInt(100);
+
+// Standard priority
+const standardPriorityFee = basePriorityFee;
+
+// High priority (fast)
+const highPriorityFee = basePriorityFee * BigInt(150) / BigInt(100);
+
+console.log('Low priority fee:', lowPriorityFee.toString());
+console.log('Standard priority fee:', standardPriorityFee.toString());
+console.log('High priority fee:', highPriorityFee.toString());
+```
+
+### Monitor Gas Prices
+
+For time-sensitive transactions, monitor gas prices:
+
+```typescript
+async function waitForLowerGas(maxGwei: number) {
+  while (true) {
+    const gasPrice = await client.dex.getGasPrice('1');
+    const currentGwei = Number(gasPrice.data[0].maxFeePerGas) / 1e9;
+    
+    console.log(`Current gas: ${currentGwei.toFixed(2)} gwei`);
+    
+    if (currentGwei <= maxGwei) {
+      console.log('Gas price acceptable, proceeding...');
+      break;
+    }
+    
+    console.log(`Waiting for gas below ${maxGwei} gwei...`);
+    await new Promise(resolve => setTimeout(resolve, 30000)); // Check every 30s
+  }
+}
+
+await waitForLowerGas(20); // Wait for gas below 20 gwei
+```
+
+## Chain-Specific Considerations
+
+### Ethereum Mainnet
+
+- High gas costs during peak hours
+- Use EIP-1559 for better estimates
+- Consider L2 alternatives
+
+```typescript
+const gasPrice = await client.dex.getGasPrice('1');
+const currentGwei = Number(gasPrice.data[0].maxFeePerGas) / 1e9;
+
+if (currentGwei > 50) {
+  console.warn('Gas prices are high. Consider using L2 or waiting.');
+}
+```
+
+### Layer 2 Networks (Base, Arbitrum, Optimism)
+
+- Significantly lower gas costs
+- Faster confirmation times
+- Still use EIP-1559
+
+```typescript
+// Base typically has very low gas
+const baseGasPrice = await client.dex.getGasPrice('8453');
+console.log('Base gas price:', baseGasPrice.data[0].maxFeePerGas);
+```
+
+### BSC and Polygon
+
+- Lower gas costs than Ethereum
+- May use legacy gas pricing or EIP-1559
+
+```typescript
+const bscGasPrice = await client.dex.getGasPrice('56');
+const polygonGasPrice = await client.dex.getGasPrice('137');
+```
+
+## API Reference
+
+### getGasPrice
+
+**Parameters:**
+- `chainIndex` - Chain identifier (e.g., '1' for Ethereum, '8453' for Base)
+
+**Returns:**
+- `baseFee` - Current base fee (EIP-1559 chains)
+- `maxFeePerGas` - Maximum fee per gas unit
+- `maxPriorityFeePerGas` - Maximum priority fee per gas
+- `gasPrice` - Legacy gas price (non-EIP-1559 chains)
+
+### getGasLimit
+
+**Parameters:**
+- `chainIndex` - Chain identifier
+- `fromAddress` - Sender address
+- `toAddress` - Recipient or contract address
+- `txAmount` - Transaction value in wei
+- `extJson` - Extended JSON with optional `inputData` for contract calls
+
+**Returns:**
+- `gasLimit` - Estimated gas limit for the transaction
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transaction Broadcasting" icon="satellite-dish" href="/guides/transaction-broadcasting">
+    Broadcast transactions with optimal gas settings
+  </Card>
+  <Card title="Executing Swaps" icon="shuffle" href="/guides/executing-swaps">
+    Execute swaps with proper gas configuration
+  </Card>
+</CardGroup>

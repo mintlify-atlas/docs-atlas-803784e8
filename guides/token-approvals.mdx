@@ -1,0 +1,407 @@
+---
+title: 'Token Approvals'
+description: 'Approve ERC-20 tokens for trading on the OKX DEX aggregator'
+---
+
+## Overview
+
+Before swapping ERC-20 tokens, you need to approve the DEX contract to spend your tokens. This is a required step for all ERC-20 token swaps on EVM-compatible chains.
+
+<Note>
+  **Native tokens (ETH, BNB, MATIC, etc.) do not require approval.** Only ERC-20 tokens need approval before swapping.
+</Note>
+
+## When Approvals Are Needed
+
+Token approvals are required when:
+
+- **Swapping FROM an ERC-20 token** (USDC, USDT, DAI, etc.)
+- **First time using a token** with the OKX DEX aggregator
+- **Increasing approval amount** beyond the current allowance
+
+Approvals are **NOT** required when:
+
+- Swapping FROM native tokens (ETH, BNB, MATIC)
+- Token already has sufficient allowance
+
+## Basic Token Approval
+
+<Steps>
+  <Step title="Initialize Client with Wallet">
+    Token approvals require a configured EVM wallet.
+
+    ```typescript
+    import { OKXDexClient } from '@okxweb3/dex-sdk';
+    import { ethers } from 'ethers';
+    import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+    const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL);
+    const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY, provider);
+
+    const client = new OKXDexClient({
+      apiKey: process.env.OKX_API_KEY!,
+      secretKey: process.env.OKX_SECRET_KEY!,
+      apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+      projectId: process.env.OKX_PROJECT_ID!,
+      evm: {
+        wallet: evmWallet
+      }
+    });
+    ```
+  </Step>
+
+  <Step title="Execute Token Approval">
+    ```typescript
+    const result = await client.dex.executeApproval({
+      chainIndex: '8453',                                           // Base mainnet
+      tokenContractAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+      approveAmount: '1000000000'                                   // 1000 USDC (6 decimals)
+    });
+
+    console.log('Approval successful!');
+    console.log('Transaction Hash:', result.transactionHash);
+    console.log('Explorer URL:', result.explorerUrl);
+    ```
+  </Step>
+</Steps>
+
+## Handling Approval Amounts
+
+### Converting Human-Readable Amounts
+
+Tokens have different decimal places. Always convert amounts to base units:
+
+```typescript
+function toBaseUnits(amount: string, decimals: number): string {
+  const [integerPart, decimalPart = ''] = amount.split('.');
+  const currentDecimals = decimalPart.length;
+  
+  let result = integerPart + decimalPart;
+  
+  if (currentDecimals < decimals) {
+    result = result + '0'.repeat(decimals - currentDecimals);
+  } else if (currentDecimals > decimals) {
+    result = result.slice(0, result.length - (currentDecimals - decimals));
+  }
+  
+  return result.replace(/^0+/, '') || '0';
+}
+
+// Example: Approve 1000 USDC (6 decimals)
+const amount = toBaseUnits('1000', 6); // Returns '1000000000'
+```
+
+### Getting Token Decimals
+
+Use the quote endpoint to get token information:
+
+```typescript
+const tokenInfo = await client.dex.getQuote({
+  chainIndex: '8453',
+  fromTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+  toTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',   // ETH
+  amount: '1000000',
+  slippagePercent: '0.5'
+});
+
+const decimals = parseInt(tokenInfo.data[0].fromToken.decimal);
+const symbol = tokenInfo.data[0].fromToken.tokenSymbol;
+
+console.log(`Token: ${symbol}, Decimals: ${decimals}`);
+```
+
+## Checking Existing Allowance
+
+The SDK automatically checks current allowance before approving:
+
+```typescript
+try {
+  const result = await client.dex.executeApproval({
+    chainIndex: '8453',
+    tokenContractAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    approveAmount: '1000000000'
+  });
+  
+  if ('alreadyApproved' in result) {
+    console.log('Token already approved for the requested amount!');
+  } else {
+    console.log('New approval completed:', result.transactionHash);
+  }
+} catch (error) {
+  console.error('Approval failed:', error);
+}
+```
+
+## Approval with Retry Logic
+
+The SDK includes automatic retry logic for failed approvals:
+
+```typescript
+// From evm-approve.ts:116-147
+
+private async executeApprovalTransaction(
+  tokenAddress: string,
+  spenderAddress: string, 
+  amount: string
+) {
+  const tokenContract = new ethers.Contract(
+    tokenAddress, 
+    ERC20_ABI, 
+    this.config.evm.wallet
+  );
+
+  let retryCount = 0;
+  const maxRetries = this.networkConfig.maxRetries || 3;
+  
+  while (retryCount < maxRetries) {
+    try {
+      const tx = await tokenContract.approve(spenderAddress, amount, {
+        gasLimit: BigInt(100000), // Safe default for approvals
+        maxFeePerGas: (await this.provider.getFeeData()).maxFeePerGas! * BigInt(150) / BigInt(100),
+        maxPriorityFeePerGas: (await this.provider.getFeeData()).maxPriorityFeePerGas! * BigInt(150) / BigInt(100)
+      });
+
+      return await tx.wait();
+    } catch (error) {
+      retryCount++;
+      if (retryCount === maxRetries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+    }
+  }
+}
+```
+
+<Warning>
+  The SDK uses a 1.5x gas multiplier for EIP-1559 transactions to ensure approvals succeed during network congestion.
+</Warning>
+
+## Complete Approval Example
+
+<CodeGroup>
+```typescript TypeScript
+import { OKXDexClient } from '@okxweb3/dex-sdk';
+import { ethers } from 'ethers';
+import { createEVMWallet } from '@okxweb3/dex-sdk';
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL!);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY!, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  evm: {
+    wallet: evmWallet
+  }
+});
+
+function toBaseUnits(amount: string, decimals: number): string {
+  const [integerPart, decimalPart = ''] = amount.split('.');
+  const currentDecimals = decimalPart.length;
+  let result = integerPart + decimalPart;
+  
+  if (currentDecimals < decimals) {
+    result = result + '0'.repeat(decimals - currentDecimals);
+  }
+  
+  return result.replace(/^0+/, '') || '0';
+}
+
+async function approveToken() {
+  const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
+  const chainIndex = '8453';
+  const amount = '1000'; // 1000 USDC
+
+  try {
+    // Get token information
+    const tokenInfo = await client.dex.getQuote({
+      chainIndex,
+      fromTokenAddress: tokenAddress,
+      toTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      amount: '1000000',
+      slippagePercent: '0.5'
+    });
+
+    const tokenDecimals = parseInt(tokenInfo.data[0].fromToken.decimal);
+    const tokenSymbol = tokenInfo.data[0].fromToken.tokenSymbol;
+    const rawAmount = toBaseUnits(amount, tokenDecimals);
+
+    console.log('Approval Details:');
+    console.log(`Token: ${tokenSymbol}`);
+    console.log(`Amount: ${amount} ${tokenSymbol}`);
+    console.log(`Amount in base units: ${rawAmount}`);
+
+    // Execute approval
+    const result = await client.dex.executeApproval({
+      chainIndex,
+      tokenContractAddress: tokenAddress,
+      approveAmount: rawAmount
+    });
+
+    if ('alreadyApproved' in result) {
+      console.log('Token already approved!');
+    } else {
+      console.log('Approval completed successfully!');
+      console.log('Transaction Hash:', result.transactionHash);
+      console.log('Explorer URL:', result.explorerUrl);
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+approveToken();
+```
+
+```javascript JavaScript
+const { OKXDexClient } = require('@okxweb3/dex-sdk');
+const { ethers } = require('ethers');
+const { createEVMWallet } = require('@okxweb3/dex-sdk');
+
+const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC_URL);
+const evmWallet = createEVMWallet(process.env.EVM_PRIVATE_KEY, provider);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY,
+  secretKey: process.env.OKX_SECRET_KEY,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE,
+  projectId: process.env.OKX_PROJECT_ID,
+  evm: {
+    wallet: evmWallet
+  }
+});
+
+async function approveToken() {
+  try {
+    const result = await client.dex.executeApproval({
+      chainIndex: '8453',
+      tokenContractAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      approveAmount: '1000000000' // 1000 USDC
+    });
+
+    console.log('Transaction Hash:', result.transactionHash);
+    console.log('Explorer URL:', result.explorerUrl);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+approveToken();
+```
+</CodeGroup>
+
+## Best Practices
+
+### Approve Exact Amounts
+
+For security, approve only the amount you need:
+
+```typescript
+// Get swap quote first
+const swapData = await client.dex.getSwapData({
+  chainIndex: '8453',
+  fromTokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  toTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  amount: '1000000000',
+  slippagePercent: '0.05',
+  userWalletAddress: evmWallet.address
+});
+
+// Approve exact amount needed
+await client.dex.executeApproval({
+  chainIndex: '8453',
+  tokenContractAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  approveAmount: '1000000000' // Same as swap amount
+});
+```
+
+### Handle Gas Costs
+
+Approval transactions consume gas. The SDK sets a safe default:
+
+```typescript
+// Default gas limit for approvals
+const gasLimit = 100000; // Safe for most ERC-20 approvals
+
+// Gas multiplier for EIP-1559
+const gasMultiplier = 1.5; // 50% buffer for network congestion
+```
+
+### Verify Approval Before Swap
+
+Always approve tokens before attempting a swap:
+
+```typescript
+async function swapWithApproval() {
+  const fromToken = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+  const amount = '1000000000';
+  
+  // Step 1: Approve token
+  console.log('Approving token...');
+  await client.dex.executeApproval({
+    chainIndex: '8453',
+    tokenContractAddress: fromToken,
+    approveAmount: amount
+  });
+  
+  // Step 2: Execute swap
+  console.log('Executing swap...');
+  const result = await client.dex.executeSwap({
+    chainIndex: '8453',
+    fromTokenAddress: fromToken,
+    toTokenAddress: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+    amount: amount,
+    slippagePercent: '0.05',
+    userWalletAddress: evmWallet.address
+  });
+  
+  console.log('Swap completed:', result.transactionHash);
+}
+```
+
+## Troubleshooting
+
+### Error: "Token already approved"
+
+This is not an error - the token has sufficient allowance:
+
+```typescript
+if ('alreadyApproved' in result) {
+  console.log('Skipping approval - already approved');
+  // Proceed with swap
+}
+```
+
+### Error: "EVM wallet required"
+
+Make sure to configure the EVM wallet when initializing the client:
+
+```typescript
+const client = new OKXDexClient({
+  // ... other config
+  evm: {
+    wallet: evmWallet  // Must be provided
+  }
+});
+```
+
+### Error: "No dex contract address found"
+
+This means the chain is not supported. Check supported chains:
+
+```typescript
+const chainData = await client.dex.getChainData('8453');
+console.log('DEX contract:', chainData.data[0].dexTokenApproveAddress);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Executing Swaps" icon="shuffle" href="/guides/executing-swaps">
+    Learn how to execute swaps after approval
+  </Card>
+  <Card title="Gas Estimation" icon="gas-pump" href="/guides/gas-estimation">
+    Estimate gas costs for approvals and swaps
+  </Card>
+</CardGroup>
