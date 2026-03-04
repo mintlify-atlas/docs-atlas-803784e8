@@ -82,6 +82,8 @@
               "api-reference/dex/get-swap-data",
               "api-reference/dex/execute-swap",
               "api-reference/dex/execute-approval",
+              "api-reference/dex/get-solana-swap-instruction",
+              "api-reference/dex/execute-solana-swap-instructions",
               "api-reference/dex/get-tokens",
               "api-reference/dex/get-liquidity",
               "api-reference/dex/get-chain-data",

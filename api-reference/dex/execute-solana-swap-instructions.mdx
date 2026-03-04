@@ -1,0 +1,236 @@
+---
+title: executeSolanaSwapInstructions
+description: Execute Solana swaps using the instruction-based method
+---
+
+Execute a Solana token swap using raw instructions. This method provides more control than `executeSwap` by allowing you to work with Solana's instruction-based architecture directly.
+
+## Method signature
+
+```typescript
+client.dex.executeSolanaSwapInstructions(params: SwapParams): Promise<SwapResult>
+```
+
+## How it works
+
+This method:
+1. Calls `getSolanaSwapInstruction` to get swap instructions
+2. Constructs a Solana transaction from the instructions
+3. Signs the transaction with your configured wallet
+4. Submits the transaction to the Solana network
+5. Waits for confirmation
+
+## Parameters
+
+<ParamField path="chainIndex" type="string" required>
+  Must be `"501"` for Solana mainnet
+</ParamField>
+
+<ParamField path="fromTokenAddress" type="string" required>
+  Source token address (SPL token or `So11111111111111111111111111111111111111112` for SOL)
+</ParamField>
+
+<ParamField path="toTokenAddress" type="string" required>
+  Destination token address (SPL token address)
+</ParamField>
+
+<ParamField path="amount" type="string" required>
+  Amount to swap in smallest unit (lamports for SOL, base units for SPL tokens)
+</ParamField>
+
+<ParamField path="userWalletAddress" type="string" required>
+  Solana wallet address executing the swap
+</ParamField>
+
+<ParamField path="slippagePercent" type="string">
+  Maximum acceptable slippage as a decimal (e.g., `"0.005"` for 0.5%)
+  
+  Either `slippagePercent` or `autoSlippage` must be provided.
+</ParamField>
+
+<ParamField path="autoSlippage" type="boolean">
+  Enable automatic slippage calculation based on market conditions
+</ParamField>
+
+<ParamField path="maxAutoSlippagePercent" type="string">
+  Maximum slippage when using auto slippage (required if `autoSlippage` is `true`)
+</ParamField>
+
+<ParamField path="computeUnitPrice" type="string">
+  Compute unit price in micro-lamports for priority fees
+</ParamField>
+
+<ParamField path="computeUnitLimit" type="string">
+  Maximum compute units to use for the transaction
+</ParamField>
+
+## Response
+
+Returns `SwapResult` containing:
+
+<ResponseField name="success" type="boolean">
+  Whether the swap completed successfully
+</ResponseField>
+
+<ResponseField name="transactionId" type="string">
+  Solana transaction signature
+</ResponseField>
+
+<ResponseField name="explorerUrl" type="string">
+  URL to view the transaction on OKX explorer
+</ResponseField>
+
+<ResponseField name="details" type="object" optional>
+  Additional swap details
+  
+  <Expandable title="Details properties">
+    <ResponseField name="fromToken" type="object">
+      Source token information (symbol, amount, decimal)
+    </ResponseField>
+    
+    <ResponseField name="toToken" type="object">
+      Destination token information (symbol, amount, decimal)
+    </ResponseField>
+    
+    <ResponseField name="priceImpact" type="string">
+      Price impact percentage
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Prerequisites
+
+<Warning>
+You must configure a Solana wallet in your `OKXDexClient` configuration to use this method.
+</Warning>
+
+```typescript
+import { OKXDexClient } from '@okx-dex/okx-dex-sdk';
+import { createWallet } from '@okx-dex/okx-dex-sdk/core/wallet';
+import { Connection } from '@solana/web3.js';
+
+const connection = new Connection(process.env.SOLANA_RPC_URL!);
+const solanaWallet = createWallet(
+  process.env.SOLANA_PRIVATE_KEY!,
+  connection
+);
+
+const client = new OKXDexClient({
+  apiKey: process.env.OKX_API_KEY!,
+  secretKey: process.env.OKX_SECRET_KEY!,
+  apiPassphrase: process.env.OKX_API_PASSPHRASE!,
+  projectId: process.env.OKX_PROJECT_ID!,
+  solana: {
+    wallet: solanaWallet,
+    computeUnits: 300000
+  }
+});
+```
+
+## Example
+
+```typescript
+// Execute Solana swap using instruction method
+const result = await client.dex.executeSolanaSwapInstructions({
+  chainIndex: '501',
+  fromTokenAddress: 'So11111111111111111111111111111111111111112', // SOL
+  toTokenAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+  amount: '500000000', // 0.5 SOL
+  slippagePercent: '0.005',
+  userWalletAddress: solanaWallet.address,
+  computeUnitPrice: '1000' // Priority fee
+});
+
+console.log('Swap successful:', result.success);
+console.log('Transaction:', result.transactionId);
+console.log('Explorer:', result.explorerUrl);
+```
+
+## When to use this method
+
+<Tabs>
+  <Tab title="Use instruction method">
+    Choose `executeSolanaSwapInstructions` when you need:
+    
+    - More control over transaction construction
+    - To add custom instructions before/after the swap
+    - To inspect instructions before execution
+    - To work with Solana's native instruction format
+  </Tab>
+  
+  <Tab title="Use standard method">
+    Use `executeSwap` for:
+    
+    - Simple, straightforward swaps
+    - When you don't need instruction-level control
+    - Consistent API across all chains
+    - Simpler code
+  </Tab>
+</Tabs>
+
+## Error handling
+
+```typescript
+try {
+  const result = await client.dex.executeSolanaSwapInstructions({
+    chainIndex: '501',
+    fromTokenAddress,
+    toTokenAddress,
+    amount,
+    slippagePercent: '0.005',
+    userWalletAddress
+  });
+  
+  if (result.success) {
+    console.log('Swap completed:', result.transactionId);
+  }
+  
+} catch (error: any) {
+  if (error.message.includes('Solana wallet configuration required')) {
+    console.error('Configure solana.wallet in OKXDexClient');
+  } else if (error.message.includes('Empty instruction data')) {
+    console.error('No swap route found');
+  } else if (error.message.includes('slippage')) {
+    console.error('Invalid slippage configuration');
+  } else {
+    console.error('Swap failed:', error.message);
+  }
+}
+```
+
+## Configuration options
+
+### Compute units and priority fees
+
+```typescript
+const result = await client.dex.executeSolanaSwapInstructions({
+  chainIndex: '501',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  slippagePercent: '0.005',
+  userWalletAddress,
+  computeUnitPrice: '2000',    // Higher priority
+  computeUnitLimit: '400000'   // More compute budget
+});
+```
+
+### Auto slippage
+
+```typescript
+const result = await client.dex.executeSolanaSwapInstructions({
+  chainIndex: '501',
+  fromTokenAddress,
+  toTokenAddress,
+  amount,
+  autoSlippage: true,
+  maxAutoSlippagePercent: '0.05', // 5% max
+  userWalletAddress
+});
+```
+
+## See also
+
+- [getSolanaSwapInstruction](/api-reference/dex/get-solana-swap-instruction) - Get instructions without executing
+- [executeSwap](/api-reference/dex/execute-swap) - Standard swap method (works for all chains)
+- [Solana swaps guide](/guides/solana-swaps) - Complete tutorial with examples
